@@ -26,9 +26,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50 text-slate-900`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} relative min-h-screen antialiased text-slate-100`}>
+        <div className="mesh-bg" />
         <Header />
-        <main className="min-h-[calc(100vh-57px)]">{children}</main>
+        <main className="relative min-h-[calc(100vh-57px)]">{children}</main>
       </body>
     </html>
   );

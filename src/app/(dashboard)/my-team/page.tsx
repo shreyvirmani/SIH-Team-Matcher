@@ -7,6 +7,8 @@ import Badge from "@/components/ui/badge";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import Select from "@/components/ui/select";
+import Avatar from "@/components/profile/Avatar";
+import TeamChat from "@/components/team/TeamChat";
 import { apiFetch } from "@/lib/api-client";
 import { useSession } from "@/lib/use-session";
 
@@ -79,13 +81,13 @@ export default function MyTeamPage() {
     await load();
   };
 
-  if (loading) return <p className="text-slate-500">Loading your team…</p>;
+  if (loading) return <p className="text-slate-400">Loading your team…</p>;
 
   if (!team) {
     return (
       <div className="mx-auto max-w-lg">
-        <h1 className="text-2xl font-bold text-slate-900">Create your team</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="text-2xl font-bold text-white">Create your team</h1>
+        <p className="mt-1 text-sm text-slate-400">
           You don&apos;t have a team yet. Create one, or accept a team request to join someone else&apos;s.
         </p>
         <Card className="mt-6 p-6">
@@ -104,7 +106,7 @@ export default function MyTeamPage() {
                 </option>
               ))}
             </Select>
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            {error && <p className="text-sm text-red-400">{error}</p>}
             <Button type="submit" loading={creating}>
               Create team
             </Button>
@@ -118,77 +120,96 @@ export default function MyTeamPage() {
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{team.name}</h1>
-          <p className="text-sm text-slate-600">{team.problem_statement_name}</p>
+          <h1 className="text-2xl font-bold text-white">{team.name}</h1>
+          <p className="text-sm text-slate-400">{team.problem_statement_name}</p>
         </div>
-        <Badge color="indigo">{team.members.length} member{team.members.length !== 1 ? "s" : ""}</Badge>
+        <Badge color="indigo">
+          {team.members.length} member{team.members.length !== 1 ? "s" : ""}
+        </Badge>
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        {team.members.map((m: any) => (
-          <Card key={m.profile_id} className="flex items-start justify-between p-4">
-            <div>
-              <Link href={`/profile/${m.profile_id}`} className="font-medium text-slate-900 hover:text-indigo-600">
-                {m.name} {m.is_leader && <Badge color="amber">Leader</Badge>}
-              </Link>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {m.roles.map((r: string) => (
-                  <Badge key={r}>{r}</Badge>
-                ))}
-              </div>
-            </div>
-            {team.leader_profile_id === user?.id && !m.is_leader && (
-              <Button variant="ghost" onClick={() => removeMember(m.profile_id)}>
-                Remove
-              </Button>
-            )}
-          </Card>
-        ))}
-      </div>
-
-      <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 p-5">
-        <h3 className="font-semibold text-amber-900">Team composition gaps</h3>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {team.missing_roles_skills.roles.length === 0 && team.missing_roles_skills.skills.length === 0 ? (
-            <p className="text-sm text-amber-800">Your team looks well-rounded!</p>
-          ) : (
-            <>
-              {team.missing_roles_skills.roles.map((r: string) => (
-                <Badge key={r} color="amber">
-                  Missing role: {r}
-                </Badge>
-              ))}
-              {team.missing_roles_skills.skills.map((s: string) => (
-                <Badge key={s} color="amber">
-                  Missing skill: {s}
-                </Badge>
-              ))}
-            </>
-          )}
-        </div>
-      </div>
-
-      {suggestions.length > 0 && (
-        <div className="mt-6">
-          <h3 className="font-semibold text-slate-900">Suggested teammates to fill the gap</h3>
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            {suggestions.map((s: any) => (
-              <Card key={s.profile_id} className="p-4">
-                <Link href={`/profile/${s.profile_id}`} className="font-medium text-slate-900 hover:text-indigo-600">
-                  {s.name}
-                </Link>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {s.skills.slice(0, 3).map((sk: string) => (
-                    <Badge key={sk} color="indigo">
-                      {sk}
-                    </Badge>
-                  ))}
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="flex flex-col gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {team.members.map((m: any) => (
+              <Card key={m.profile_id} className="flex items-start justify-between p-4">
+                <div className="flex items-center gap-2">
+                  <Avatar url={m.avatar_url} name={m.name} size={32} />
+                  <div>
+                    <Link href={`/profile/${m.profile_id}`} className="font-medium text-white hover:text-indigo-300">
+                      {m.name}
+                    </Link>
+                    {m.is_leader && (
+                      <div>
+                        <Badge color="amber">Leader</Badge>
+                      </div>
+                    )}
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {m.roles.map((r: string) => (
+                        <Badge key={r}>{r}</Badge>
+                      ))}
+                    </div>
+                  </div>
                 </div>
+                {team.leader_profile_id === user?.id && !m.is_leader && (
+                  <Button variant="ghost" onClick={() => removeMember(m.profile_id)}>
+                    Remove
+                  </Button>
+                )}
               </Card>
             ))}
           </div>
+
+          <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 p-5">
+            <h3 className="font-semibold text-amber-300">Team composition gaps</h3>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {team.missing_roles_skills.roles.length === 0 && team.missing_roles_skills.skills.length === 0 ? (
+                <p className="text-sm text-amber-200">Your team looks well-rounded!</p>
+              ) : (
+                <>
+                  {team.missing_roles_skills.roles.map((r: string) => (
+                    <Badge key={r} color="amber">
+                      Missing role: {r}
+                    </Badge>
+                  ))}
+                  {team.missing_roles_skills.skills.map((s: string) => (
+                    <Badge key={s} color="amber">
+                      Missing skill: {s}
+                    </Badge>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+
+          {suggestions.length > 0 && (
+            <div>
+              <h3 className="font-semibold text-white">Suggested teammates to fill the gap</h3>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                {suggestions.map((s: any) => (
+                  <Card key={s.profile_id} className="p-4">
+                    <Link href={`/profile/${s.profile_id}`} className="font-medium text-white hover:text-indigo-300">
+                      {s.name}
+                    </Link>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {s.skills.slice(0, 3).map((sk: string) => (
+                        <Badge key={sk} color="indigo">
+                          {sk}
+                        </Badge>
+                      ))}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+        <div>
+          <h3 className="mb-3 font-semibold text-white">Team chat</h3>
+          {user && <TeamChat teamId={team.team_id} currentUserId={user.id} />}
+        </div>
+      </div>
     </div>
   );
 }

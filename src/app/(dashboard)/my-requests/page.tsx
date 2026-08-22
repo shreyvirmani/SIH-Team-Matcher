@@ -40,14 +40,14 @@ export default function MyRequestsPage() {
     }
   };
 
-  if (loading) return <p className="text-slate-500">Loading requests…</p>;
+  if (loading) return <p className="text-slate-400">Loading requests…</p>;
 
   const received = requests.filter((r) => r.receiver_profile_id === user?.id);
   const sent = requests.filter((r) => r.sender_profile_id === user?.id);
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-slate-900">My requests</h1>
+      <h1 className="text-2xl font-bold text-white">My requests</h1>
 
       <section className="mt-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Received</h2>
@@ -58,8 +58,8 @@ export default function MyRequestsPage() {
             {received.map((r) => (
               <Card key={r.request_id} className="flex items-center justify-between p-4">
                 <div>
-                  <p className="font-medium text-slate-900">{r.sender_name}</p>
-                  {r.message && <p className="text-sm text-slate-500">&ldquo;{r.message}&rdquo;</p>}
+                  <p className="font-medium text-white">{r.sender_name}</p>
+                  {r.message && <p className="text-sm text-slate-400">&ldquo;{r.message}&rdquo;</p>}
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge color={STATUS_COLOR[r.status]}>{r.status}</Badge>
@@ -92,7 +92,7 @@ export default function MyRequestsPage() {
           <div className="mt-3 flex flex-col gap-3">
             {sent.map((r) => (
               <Card key={r.request_id} className="flex items-center justify-between p-4">
-                <p className="font-medium text-slate-900">{r.receiver_name}</p>
+                <p className="font-medium text-white">{r.receiver_name}</p>
                 <Badge color={STATUS_COLOR[r.status]}>{r.status}</Badge>
               </Card>
             ))}

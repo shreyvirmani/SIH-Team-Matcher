@@ -5,7 +5,5 @@ export default function Card({
   children: React.ReactNode;
   className?: string;
 }) {
-  return (
-    <div className={`rounded-xl border border-slate-200 bg-white shadow-sm ${className}`}>{children}</div>
-  );
+  return <div className={`glass-panel rounded-2xl ${className}`}>{children}</div>;
 }

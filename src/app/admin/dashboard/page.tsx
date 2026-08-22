@@ -26,10 +26,7 @@ export default function AdminDashboardPage() {
   }, [sessionLoading, profile, router]);
 
   const load = async () => {
-    const [s, ps] = await Promise.all([
-      apiFetch("/api/admin/stats"),
-      apiFetch("/api/admin/problem-statements"),
-    ]);
+    const [s, ps] = await Promise.all([apiFetch("/api/admin/stats"), apiFetch("/api/admin/problem-statements")]);
     setStats(s);
     setProblemStatements(ps.problemStatements);
   };
@@ -59,7 +56,7 @@ export default function AdminDashboardPage() {
   };
 
   if (sessionLoading || !profile?.isAdmin || !stats) {
-    return <div className="mx-auto max-w-6xl px-4 py-16 text-slate-500">Loading admin dashboard…</div>;
+    return <div className="mx-auto max-w-6xl px-4 py-16 text-slate-400">Loading admin dashboard…</div>;
   }
 
   const statCards = [
@@ -73,25 +70,25 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="text-2xl font-bold text-slate-900">Admin dashboard</h1>
+      <h1 className="text-2xl font-bold text-white">Admin dashboard</h1>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {statCards.map((s) => (
           <Card key={s.label} className="p-4 text-center">
-            <p className="text-2xl font-bold text-indigo-600">{s.value}</p>
-            <p className="mt-1 text-xs text-slate-500">{s.label}</p>
+            <p className="text-2xl font-bold text-indigo-300">{s.value}</p>
+            <p className="mt-1 text-xs text-slate-400">{s.label}</p>
           </Card>
         ))}
       </div>
 
       <div className="mt-10 grid gap-8 lg:grid-cols-2">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Problem statements</h2>
+          <h2 className="text-lg font-semibold text-white">Problem statements</h2>
           <div className="mt-3 flex flex-col gap-2">
             {problemStatements.map((ps) => (
               <Card key={ps.id} className="flex items-center justify-between p-3">
                 <div>
-                  <p className="text-sm font-medium text-slate-900">{ps.title}</p>
+                  <p className="text-sm font-medium text-white">{ps.title}</p>
                   <p className="text-xs text-slate-500">{ps.category}</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -106,38 +103,29 @@ export default function AdminDashboardPage() {
         </div>
 
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Add problem statement</h2>
+          <h2 className="text-lg font-semibold text-white">Add problem statement</h2>
           <Card className="mt-3 p-5">
             <form onSubmit={createPS} className="flex flex-col gap-4">
-              <Input
-                label="Title"
-                required
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
-              <Input
-                label="Category"
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-              />
+              <Input label="Title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+              <Input label="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
               <Textarea
                 label="Description"
                 rows={3}
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
-              {error && <p className="text-sm text-red-500">{error}</p>}
+              {error && <p className="text-sm text-red-400">{error}</p>}
               <Button type="submit" loading={creating}>
                 Add
               </Button>
             </form>
           </Card>
 
-          <h2 className="mt-8 text-lg font-semibold text-slate-900">Recent signups</h2>
+          <h2 className="mt-8 text-lg font-semibold text-white">Recent signups</h2>
           <div className="mt-3 flex flex-col gap-2">
             {stats.recentUsers.map((u: any) => (
               <Card key={u.id} className="flex items-center justify-between p-3 text-sm">
-                <span className="font-medium text-slate-900">{u.fullName}</span>
+                <span className="font-medium text-white">{u.fullName}</span>
                 <span className="text-slate-500">{u.college}</span>
               </Card>
             ))}

@@ -7,13 +7,15 @@ import Select from "@/components/ui/select";
 import Textarea from "@/components/ui/textarea";
 import MultiSelect from "@/components/ui/multiselect";
 import Card from "@/components/ui/card";
+import AvatarUpload from "@/components/profile/AvatarUpload";
 import { apiFetch } from "@/lib/api-client";
 import { useSession } from "@/lib/use-session";
 
 export default function MyProfilePage() {
-  const { profile, refresh } = useSession();
+  const { user, profile, refresh } = useSession();
   const [lookups, setLookups] = useState<any>(null);
   const [form, setForm] = useState<any>(null);
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [skills, setSkills] = useState<string[]>([]);
   const [roles, setRoles] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -33,8 +35,10 @@ export default function MyProfilePage() {
         experience: profile.experience,
         availability: profile.availability,
         bio: profile.bio,
+        githubUsername: profile.githubUsername || "",
         isLookingForTeam: profile.isLookingForTeam,
       });
+      setAvatarUrl(profile.avatarUrl || "");
       setSkills(profile.skills || []);
       setRoles(profile.roles || []);
     }
@@ -48,7 +52,7 @@ export default function MyProfilePage() {
     try {
       await apiFetch(`/api/profiles/${profile.id}`, {
         method: "PUT",
-        body: JSON.stringify({ ...form, skills, roles }),
+        body: JSON.stringify({ ...form, avatarUrl: avatarUrl || undefined, skills, roles }),
       });
       await refresh();
       setMessage("Profile updated!");
@@ -59,13 +63,15 @@ export default function MyProfilePage() {
     }
   };
 
-  if (!profile || !form || !lookups) return <p className="text-slate-500">Loading…</p>;
+  if (!user || !profile || !form || !lookups) return <p className="text-slate-400">Loading…</p>;
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="text-2xl font-bold text-slate-900">My profile</h1>
+      <h1 className="text-2xl font-bold text-white">My profile</h1>
       <Card className="mt-6 p-6">
         <form onSubmit={handleSave} className="flex flex-col gap-5">
+          <AvatarUpload userId={user.id} currentUrl={avatarUrl} onUploaded={setAvatarUrl} />
+
           <Input
             label="Full name"
             value={form.fullName}
@@ -103,19 +109,25 @@ export default function MyProfilePage() {
             </Select>
           </div>
           <Textarea label="Bio" rows={3} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} />
+          <Input
+            label="GitHub username (optional)"
+            value={form.githubUsername}
+            onChange={(e) => setForm({ ...form, githubUsername: e.target.value })}
+            placeholder="e.g. octocat"
+          />
           <MultiSelect label="Skills" options={lookups.skills.map((s: any) => s.name)} selected={skills} onChange={setSkills} />
           <MultiSelect label="Roles" options={lookups.roles.map((r: any) => r.name)} selected={roles} onChange={setRoles} />
 
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-slate-300">
             <input
               type="checkbox"
               checked={form.isLookingForTeam}
               onChange={(e) => setForm({ ...form, isLookingForTeam: e.target.checked })}
             />
-            I'm actively looking for a team (visible in Discover)
+            I&apos;m actively looking for a team (visible in Discover)
           </label>
 
-          {message && <p className="text-sm text-indigo-600">{message}</p>}
+          {message && <p className="text-sm text-indigo-300">{message}</p>}
           <Button type="submit" loading={saving} className="w-full">
             Save changes
           </Button>

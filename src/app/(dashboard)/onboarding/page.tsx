@@ -8,6 +8,7 @@ import Select from "@/components/ui/select";
 import Textarea from "@/components/ui/textarea";
 import MultiSelect from "@/components/ui/multiselect";
 import Card from "@/components/ui/card";
+import AvatarUpload from "@/components/profile/AvatarUpload";
 import { apiFetch } from "@/lib/api-client";
 import { useSession } from "@/lib/use-session";
 
@@ -19,7 +20,7 @@ interface Lookups {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { profile, refresh } = useSession();
+  const { user, profile, refresh } = useSession();
   const [lookups, setLookups] = useState<Lookups | null>(null);
   const [form, setForm] = useState({
     fullName: "",
@@ -29,7 +30,9 @@ export default function OnboardingPage() {
     experience: "Intermediate" as "Beginner" | "Intermediate" | "Advanced",
     availability: "Flexible" as "Full-time" | "Part-time" | "Flexible",
     bio: "",
+    githubUsername: "",
   });
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [skills, setSkills] = useState<string[]>([]);
   const [roles, setRoles] = useState<string[]>([]);
   const [problemStatementIds, setProblemStatementIds] = useState<number[]>([]);
@@ -59,7 +62,14 @@ export default function OnboardingPage() {
     try {
       await apiFetch("/api/profiles", {
         method: "POST",
-        body: JSON.stringify({ ...form, skills, roles, problemStatementIds }),
+        body: JSON.stringify({
+          ...form,
+          avatarUrl: avatarUrl || undefined,
+          githubUsername: form.githubUsername || undefined,
+          skills,
+          roles,
+          problemStatementIds,
+        }),
       });
       await refresh();
       router.push("/discover");
@@ -70,18 +80,20 @@ export default function OnboardingPage() {
     }
   };
 
-  if (!lookups) return <p className="text-slate-500">Loading form…</p>;
+  if (!lookups || !user) return <p className="text-slate-400">Loading form…</p>;
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="text-2xl font-bold text-slate-900">Build your profile</h1>
-      <p className="mt-1 text-sm text-slate-600">
+      <h1 className="text-2xl font-bold text-white">Build your profile</h1>
+      <p className="mt-1 text-sm text-slate-400">
         This is what teammates will see when they discover you. Be specific about your skills — it powers your
         compatibility score.
       </p>
 
       <Card className="mt-6 p-6">
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <AvatarUpload userId={user.id} currentUrl={avatarUrl} onUploaded={setAvatarUrl} />
+
           <Input
             label="Full name"
             required
@@ -141,6 +153,12 @@ export default function OnboardingPage() {
             onChange={(e) => setForm({ ...form, bio: e.target.value })}
             placeholder="What are you looking to build? What's your hackathon experience?"
           />
+          <Input
+            label="GitHub username (optional)"
+            value={form.githubUsername}
+            onChange={(e) => setForm({ ...form, githubUsername: e.target.value })}
+            placeholder="e.g. octocat"
+          />
           <MultiSelect
             label="Skills"
             options={lookups.skills.map((s) => s.name)}
@@ -150,8 +168,8 @@ export default function OnboardingPage() {
           <MultiSelect label="Roles" options={lookups.roles.map((r) => r.name)} selected={roles} onChange={setRoles} />
 
           <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-slate-700">SIH Problem Statement(s)</span>
-            <div className="flex max-h-52 flex-col gap-2 overflow-y-auto rounded-lg border border-slate-300 p-3">
+            <span className="text-sm font-medium text-slate-300">SIH Problem Statement(s)</span>
+            <div className="flex max-h-52 flex-col gap-2 overflow-y-auto rounded-lg border border-slate-600/60 bg-white/5 p-3">
               {lookups.problemStatements.map((ps) => (
                 <label key={ps.id} className="flex items-start gap-2 text-sm">
                   <input
@@ -161,7 +179,7 @@ export default function OnboardingPage() {
                     onChange={() => togglePS(ps.id)}
                   />
                   <span>
-                    <span className="font-medium text-slate-800">{ps.title}</span>{" "}
+                    <span className="font-medium text-slate-200">{ps.title}</span>{" "}
                     <span className="text-xs text-slate-500">({ps.category})</span>
                   </span>
                 </label>
@@ -169,7 +187,7 @@ export default function OnboardingPage() {
             </div>
           </div>
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-red-400">{error}</p>}
           <Button type="submit" loading={loading} className="w-full">
             Save profile & start discovering
           </Button>

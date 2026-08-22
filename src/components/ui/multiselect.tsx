@@ -23,8 +23,8 @@ export default function MultiSelect({
 
   return (
     <div className="flex flex-col gap-1.5">
-      {label && <span className="text-sm font-medium text-slate-700">{label}</span>}
-      <div className="flex flex-wrap gap-1.5 rounded-lg border border-slate-300 p-2 max-h-40 overflow-y-auto">
+      {label && <span className="text-sm font-medium text-slate-300">{label}</span>}
+      <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-slate-600/60 bg-white/5 p-2">
         {options.map((opt) => {
           const active = selected.includes(opt);
           return (
@@ -34,8 +34,8 @@ export default function MultiSelect({
               onClick={() => toggle(opt)}
               className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
                 active
-                  ? "border-indigo-600 bg-indigo-600 text-white"
-                  : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300"
+                  ? "border-indigo-400 bg-indigo-500 text-white shadow-[0_0_12px_-2px_rgba(99,102,241,0.8)]"
+                  : "border-slate-600/60 bg-white/5 text-slate-300 hover:border-indigo-400/50"
               }`}
             >
               {opt}
@@ -43,7 +43,7 @@ export default function MultiSelect({
           );
         })}
       </div>
-      {error && <span className="text-xs text-red-500">{error}</span>}
+      {error && <span className="text-xs text-red-400">{error}</span>}
     </div>
   );
 }

@@ -15,7 +15,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [loading, user, router]);
 
   if (loading) {
-    return <div className="mx-auto max-w-6xl px-4 py-16 text-center text-slate-500">Loading…</div>;
+    return <div className="mx-auto max-w-6xl px-4 py-16 text-center text-slate-400">Loading…</div>;
   }
   if (!user) return null;
 

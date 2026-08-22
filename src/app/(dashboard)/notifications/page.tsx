@@ -5,6 +5,8 @@ import Card from "@/components/ui/card";
 import Badge from "@/components/ui/badge";
 import Button from "@/components/ui/button";
 import { apiFetch } from "@/lib/api-client";
+import { useSession } from "@/lib/use-session";
+import { useRealtimeNotifications } from "@/lib/use-realtime-notifications";
 
 const TYPE_LABEL: Record<string, string> = {
   team_request: "New request",
@@ -13,11 +15,11 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 export default function NotificationsPage() {
+  const { user } = useSession();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
-    setLoading(true);
     const res = await apiFetch("/api/notifications");
     setNotifications(res.notifications);
     setLoading(false);
@@ -25,10 +27,10 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     load();
-    // Lightweight polling to approximate real-time updates for this local build.
-    const interval = setInterval(load, 15000);
-    return () => clearInterval(interval);
   }, []);
+
+  // Live push updates via Supabase Realtime instead of polling.
+  useRealtimeNotifications(user?.id, load);
 
   const markAllRead = async () => {
     await apiFetch("/api/notifications", { method: "PATCH", body: JSON.stringify({ mark_all_read: true }) });
@@ -40,12 +42,12 @@ export default function NotificationsPage() {
     await load();
   };
 
-  if (loading) return <p className="text-slate-500">Loading notifications…</p>;
+  if (loading) return <p className="text-slate-400">Loading notifications…</p>;
 
   return (
     <div className="mx-auto max-w-2xl">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Notifications</h1>
+        <h1 className="text-2xl font-bold text-white">Notifications</h1>
         {notifications.some((n) => !n.is_read) && (
           <Button variant="outline" onClick={markAllRead}>
             Mark all as read
@@ -65,9 +67,9 @@ export default function NotificationsPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <Badge color={n.is_read ? "slate" : "indigo"}>{TYPE_LABEL[n.type] || n.type}</Badge>
-                  <span className="text-xs text-slate-400">{new Date(n.created_at).toLocaleString()}</span>
+                  <span className="text-xs text-slate-500">{new Date(n.created_at).toLocaleString()}</span>
                 </div>
-                <p className="mt-1 text-sm text-slate-700">{n.message}</p>
+                <p className="mt-1 text-sm text-slate-300">{n.message}</p>
               </div>
               {!n.is_read && (
                 <Button variant="ghost" onClick={() => markRead(n.notification_id)}>
