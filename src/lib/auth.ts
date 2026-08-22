@@ -1,74 +1,4 @@
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { cookies } from "next/headers";
-import { getDb } from "./db";
-
-// This module implements the same *contract* Supabase Auth would provide
-// (signUp / signIn / verify session / issue JWT) so that swapping in real
-// Supabase Auth later only requires changing this file, not call sites.
-
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-in-production-please";
-const COOKIE_NAME = "sih_session";
-const SESSION_DAYS = 7;
-
-export interface SessionUser {
-  id: string;
-  email: string;
-  isAdmin: boolean;
-}
-
-export function hashPassword(password: string): string {
-  return bcrypt.hashSync(password, 10);
-}
-
-export function verifyPassword(password: string, hash: string): boolean {
-  return bcrypt.compareSync(password, hash);
-}
-
-export function issueToken(userId: string, email: string): string {
-  return jwt.sign({ sub: userId, email }, JWT_SECRET, { expiresIn: `${SESSION_DAYS}d` });
-}
-
-export function setSessionCookie(token: string) {
-  cookies().set(COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_DAYS * 24 * 60 * 60,
-  });
-}
-
-export function clearSessionCookie() {
-  cookies().delete(COOKIE_NAME);
-}
-
-export function getSessionFromRequest(): SessionUser | null {
-  const token = cookies().get(COOKIE_NAME)?.value;
-  if (!token) return null;
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as { sub: string; email: string };
-    const db = getDb();
-    const row = db
-      .prepare("SELECT p.is_admin as isAdmin FROM profiles p WHERE p.id = ?")
-      .get(payload.sub) as { isAdmin: number } | undefined;
-    return {
-      id: payload.sub,
-      email: payload.email,
-      isAdmin: !!row?.isAdmin,
-    };
-  } catch {
-    return null;
-  }
-}
-
-export function requireSession(): SessionUser {
-  const session = getSessionFromRequest();
-  if (!session) {
-    throw new AuthError("Not authenticated", 401);
-  }
-  return session;
-}
+import { createServerSupabase } from "./supabase/server";
 
 export class AuthError extends Error {
   status: number;
@@ -76,4 +6,48 @@ export class AuthError extends Error {
     super(message);
     this.status = status;
   }
+}
+
+export interface SessionUser {
+  id: string;
+  email: string;
+  isAdmin: boolean;
+}
+
+/**
+ * Resolves the current Supabase-authenticated user for a server-side call
+ * (API route or server component), plus their `is_admin` flag from
+ * `profiles`. Every API route should call this (or requireUser) instead of
+ * touching supabase.auth directly, so the isAdmin lookup stays in one place.
+ */
+export async function getSessionUser(): Promise<SessionUser | null> {
+  const supabase = createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  return {
+    id: user.id,
+    email: user.email ?? "",
+    isAdmin: !!profile?.is_admin,
+  };
+}
+
+export async function requireUser(): Promise<SessionUser> {
+  const session = await getSessionUser();
+  if (!session) throw new AuthError("Not authenticated", 401);
+  return session;
+}
+
+export async function requireAdmin(): Promise<SessionUser> {
+  const session = await requireUser();
+  if (!session.isAdmin) throw new AuthError("Admin access required", 403);
+  return session;
 }

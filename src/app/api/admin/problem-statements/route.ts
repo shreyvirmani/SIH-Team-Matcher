@@ -1,24 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getDb } from "@/lib/db";
-import { requireSession, AuthError } from "@/lib/auth";
+import { createAdminSupabase } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth";
+import { withApiError } from "@/lib/api-helpers";
 
-function requireAdmin() {
-  const session = requireSession();
-  if (!session.isAdmin) throw new AuthError("Admin access required", 403);
-  return session;
-}
+// Writes here use the service-role client: problem_statements has no
+// authenticated-write RLS policy (see schema.postgres.sql), by design —
+// only trusted admin routes (gated by requireAdmin()) may manage it.
 
 export async function GET() {
-  try {
-    requireAdmin();
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
-  const db = getDb();
-  const items = db.prepare("SELECT * FROM problem_statements ORDER BY id").all();
-  return NextResponse.json({ problemStatements: items });
+  return withApiError(async () => {
+    await requireAdmin();
+    const admin = createAdminSupabase();
+    const { data } = await admin.from("problem_statements").select("*").order("id");
+    return NextResponse.json({ problemStatements: data || [] });
+  });
 }
 
 const schema = z.object({
@@ -28,46 +24,36 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  try {
-    requireAdmin();
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
-  const json = await req.json().catch(() => null);
-  const parsed = schema.safeParse(json);
-  if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  return withApiError(async () => {
+    await requireAdmin();
+    const json = await req.json().catch(() => null);
+    const parsed = schema.safeParse(json);
+    if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
 
-  const db = getDb();
-  const result = db
-    .prepare(`INSERT INTO problem_statements (title, description, category, is_active) VALUES (?, ?, ?, 1)`)
-    .run(parsed.data.title, parsed.data.description, parsed.data.category);
-
-  const created = db.prepare("SELECT * FROM problem_statements WHERE id = ?").get(result.lastInsertRowid);
-  return NextResponse.json(created, { status: 201 });
+    const admin = createAdminSupabase();
+    const { data, error } = await admin.from("problem_statements").insert(parsed.data).select().single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json(data, { status: 201 });
+  });
 }
 
-const patchSchema = z.object({
-  id: z.number(),
-  is_active: z.boolean(),
-});
+const patchSchema = z.object({ id: z.number(), is_active: z.boolean() });
 
 export async function PATCH(req: NextRequest) {
-  try {
-    requireAdmin();
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
-  const json = await req.json().catch(() => null);
-  const parsed = patchSchema.safeParse(json);
-  if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  return withApiError(async () => {
+    await requireAdmin();
+    const json = await req.json().catch(() => null);
+    const parsed = patchSchema.safeParse(json);
+    if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
 
-  const db = getDb();
-  db.prepare("UPDATE problem_statements SET is_active = ? WHERE id = ?").run(
-    parsed.data.is_active ? 1 : 0,
-    parsed.data.id
-  );
-  const updated = db.prepare("SELECT * FROM problem_statements WHERE id = ?").get(parsed.data.id);
-  return NextResponse.json(updated);
+    const admin = createAdminSupabase();
+    const { data, error } = await admin
+      .from("problem_statements")
+      .update({ is_active: parsed.data.is_active })
+      .eq("id", parsed.data.id)
+      .select()
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json(data);
+  });
 }

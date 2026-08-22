@@ -1,42 +1,49 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
-import { requireSession, AuthError } from "@/lib/auth";
+import { createAdminSupabase } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth";
+import { withApiError } from "@/lib/api-helpers";
 
 export async function GET() {
-  try {
-    const session = requireSession();
-    if (!session.isAdmin) throw new AuthError("Admin access required", 403);
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  return withApiError(async () => {
+    await requireAdmin();
+    const admin = createAdminSupabase();
 
-  const db = getDb();
-  const totalUsers = (db.prepare("SELECT COUNT(*) as c FROM users").get() as any).c;
-  const totalProfiles = (db.prepare("SELECT COUNT(*) as c FROM profiles").get() as any).c;
-  const totalTeams = (db.prepare("SELECT COUNT(*) as c FROM teams").get() as any).c;
-  const totalRequests = (db.prepare("SELECT COUNT(*) as c FROM team_requests").get() as any).c;
-  const pendingRequests = (db.prepare("SELECT COUNT(*) as c FROM team_requests WHERE status = 'pending'").get() as any).c;
-  const acceptedRequests = (db.prepare("SELECT COUNT(*) as c FROM team_requests WHERE status = 'accepted'").get() as any).c;
-  const activeProblemStatements = (
-    db.prepare("SELECT COUNT(*) as c FROM problem_statements WHERE is_active = 1").get() as any
-  ).c;
+    const [
+      { count: totalProfiles },
+      { count: totalTeams },
+      { count: totalRequests },
+      { count: pendingRequests },
+      { count: acceptedRequests },
+      { count: activeProblemStatements },
+      { data: recentUsers },
+    ] = await Promise.all([
+      admin.from("profiles").select("*", { count: "exact", head: true }),
+      admin.from("teams").select("*", { count: "exact", head: true }),
+      admin.from("team_requests").select("*", { count: "exact", head: true }),
+      admin.from("team_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
+      admin.from("team_requests").select("*", { count: "exact", head: true }).eq("status", "accepted"),
+      admin.from("problem_statements").select("*", { count: "exact", head: true }).eq("is_active", true),
+      admin
+        .from("profiles")
+        .select("id, full_name, college, created_at")
+        .order("created_at", { ascending: false })
+        .limit(10),
+    ]);
 
-  const recentUsers = db
-    .prepare(
-      `SELECT p.id, p.full_name as fullName, p.college, u.email, p.created_at as createdAt
-       FROM profiles p JOIN users u ON u.id = p.id ORDER BY p.created_at DESC LIMIT 10`
-    )
-    .all();
-
-  return NextResponse.json({
-    totalUsers,
-    totalProfiles,
-    totalTeams,
-    totalRequests,
-    pendingRequests,
-    acceptedRequests,
-    activeProblemStatements,
-    recentUsers,
+    return NextResponse.json({
+      totalUsers: totalProfiles || 0,
+      totalProfiles: totalProfiles || 0,
+      totalTeams: totalTeams || 0,
+      totalRequests: totalRequests || 0,
+      pendingRequests: pendingRequests || 0,
+      acceptedRequests: acceptedRequests || 0,
+      activeProblemStatements: activeProblemStatements || 0,
+      recentUsers: (recentUsers || []).map((u: any) => ({
+        id: u.id,
+        fullName: u.full_name,
+        college: u.college,
+        createdAt: u.created_at,
+      })),
+    });
   });
 }

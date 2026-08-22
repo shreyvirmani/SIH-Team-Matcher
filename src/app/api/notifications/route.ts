@@ -1,46 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getDb } from "@/lib/db";
-import { requireSession, AuthError } from "@/lib/auth";
+import { createServerSupabase } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
+import { withApiError } from "@/lib/api-helpers";
 
 export async function GET(req: NextRequest) {
-  let session;
-  try {
-    session = requireSession();
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  return withApiError(async () => {
+    const session = await requireUser();
+    const supabase = createServerSupabase();
 
-  const { searchParams } = new URL(req.url);
-  const isRead = searchParams.get("is_read");
-  const limit = Math.min(100, parseInt(searchParams.get("limit") || "50", 10));
+    const { searchParams } = new URL(req.url);
+    const isRead = searchParams.get("is_read");
+    const limit = Math.min(100, parseInt(searchParams.get("limit") || "50", 10));
 
-  const db = getDb();
-  let rows: any[];
-  if (isRead === "true") {
-    rows = db
-      .prepare(`SELECT * FROM notifications WHERE receiver_profile_id = ? AND read_at IS NOT NULL ORDER BY created_at DESC LIMIT ?`)
-      .all(session.id, limit);
-  } else if (isRead === "false") {
-    rows = db
-      .prepare(`SELECT * FROM notifications WHERE receiver_profile_id = ? AND read_at IS NULL ORDER BY created_at DESC LIMIT ?`)
-      .all(session.id, limit);
-  } else {
-    rows = db
-      .prepare(`SELECT * FROM notifications WHERE receiver_profile_id = ? ORDER BY created_at DESC LIMIT ?`)
-      .all(session.id, limit);
-  }
+    let query = supabase
+      .from("notifications")
+      .select("*")
+      .eq("receiver_profile_id", session.id)
+      .order("created_at", { ascending: false })
+      .limit(limit);
 
-  const notifications = rows.map((r: any) => ({
-    notification_id: r.id,
-    message: r.message,
-    type: r.type,
-    is_read: !!r.read_at,
-    created_at: r.created_at,
-  }));
+    if (isRead === "true") query = query.not("read_at", "is", null);
+    else if (isRead === "false") query = query.is("read_at", null);
 
-  return NextResponse.json({ notifications, total: notifications.length });
+    const { data: rows } = await query;
+
+    const notifications = (rows || []).map((r: any) => ({
+      notification_id: r.id,
+      message: r.message,
+      type: r.type,
+      is_read: !!r.read_at,
+      created_at: r.created_at,
+    }));
+
+    return NextResponse.json({ notifications, total: notifications.length });
+  });
 }
 
 const patchSchema = z.object({
@@ -49,29 +43,29 @@ const patchSchema = z.object({
 });
 
 export async function PATCH(req: NextRequest) {
-  let session;
-  try {
-    session = requireSession();
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  return withApiError(async () => {
+    const session = await requireUser();
+    const supabase = createServerSupabase();
 
-  const json = await req.json().catch(() => null);
-  const parsed = patchSchema.safeParse(json);
-  if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    const json = await req.json().catch(() => null);
+    const parsed = patchSchema.safeParse(json);
+    if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
 
-  const db = getDb();
-  if (parsed.data.mark_all_read) {
-    db.prepare(`UPDATE notifications SET read_at = datetime('now') WHERE receiver_profile_id = ? AND read_at IS NULL`).run(
-      session.id
-    );
-  } else if (parsed.data.notification_id) {
-    db.prepare(`UPDATE notifications SET read_at = datetime('now') WHERE id = ? AND receiver_profile_id = ?`).run(
-      parsed.data.notification_id,
-      session.id
-    );
-  }
+    const nowIso = new Date().toISOString();
+    if (parsed.data.mark_all_read) {
+      await supabase
+        .from("notifications")
+        .update({ read_at: nowIso })
+        .eq("receiver_profile_id", session.id)
+        .is("read_at", null);
+    } else if (parsed.data.notification_id) {
+      await supabase
+        .from("notifications")
+        .update({ read_at: nowIso })
+        .eq("id", parsed.data.notification_id)
+        .eq("receiver_profile_id", session.id);
+    }
 
-  return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true });
+  });
 }

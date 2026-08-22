@@ -1,6 +1,12 @@
-import { getDb } from "@/lib/db";
-import bcrypt from "bcryptjs";
-import { randomUUID } from "crypto";
+// Seeds a real Supabase project: skills, roles, SIH problem statements, and
+// a demo admin account. Requires NEXT_PUBLIC_SUPABASE_URL and
+// SUPABASE_SERVICE_ROLE_KEY (Project Settings → API → service_role) in
+// .env.local. Safe to re-run — every insert is upsert/on-conflict-safe.
+//
+// Run: npm run seed
+
+import "dotenv/config";
+import { createAdminSupabase } from "../lib/supabase/admin";
 
 const SKILLS = [
   "React", "Next.js", "Node.js", "Python", "Django", "Flask", "TypeScript",
@@ -32,38 +38,73 @@ const PROBLEM_STATEMENTS: { title: string; description: string; category: string
   { title: "Farmer-to-Consumer Direct Marketplace", description: "Platform cutting out middlemen between farmers and consumers.", category: "Agriculture" },
 ];
 
-function main() {
-  const db = getDb();
+const ADMIN_EMAIL = "admin@sihmatcher.dev";
+const ADMIN_PASSWORD = "Admin@123"; // change immediately after first login in any real deployment
 
-  const insertSkill = db.prepare("INSERT OR IGNORE INTO skills (name) VALUES (?)");
-  for (const s of SKILLS) insertSkill.run(s);
+async function main() {
+  const admin = createAdminSupabase();
 
-  const insertRole = db.prepare("INSERT OR IGNORE INTO roles (name) VALUES (?)");
-  for (const r of ROLES) insertRole.run(r);
-
-  const insertPS = db.prepare(
-    "INSERT OR IGNORE INTO problem_statements (title, description, category, is_active) VALUES (?, ?, ?, 1)"
+  console.log("Seeding skills...");
+  await admin.from("skills").upsert(
+    SKILLS.map((name) => ({ name })),
+    { onConflict: "name", ignoreDuplicates: true }
   );
-  for (const p of PROBLEM_STATEMENTS) insertPS.run(p.title, p.description, p.category);
 
-  // Seed an admin account for the Admin Dashboard (change password after first login).
-  const existingAdmin = db.prepare("SELECT id FROM users WHERE email = ?").get("admin@sihmatcher.dev");
-  if (!existingAdmin) {
-    const id = randomUUID();
-    const hash = bcrypt.hashSync("Admin@123", 10);
-    db.prepare("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)").run(
-      id,
-      "admin@sihmatcher.dev",
-      hash
-    );
-    db.prepare(
-      `INSERT INTO profiles (id, full_name, college, branch, year, experience, availability, bio, is_looking_for_team, is_admin)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1)`
-    ).run(id, "Platform Admin", "N/A", "N/A", 0, "Advanced", "Flexible", "Platform administrator account.");
-    console.log("Seeded admin account: admin@sihmatcher.dev / Admin@123");
+  console.log("Seeding roles...");
+  await admin.from("roles").upsert(
+    ROLES.map((name) => ({ name })),
+    { onConflict: "name", ignoreDuplicates: true }
+  );
+
+  console.log("Seeding problem statements...");
+  for (const ps of PROBLEM_STATEMENTS) {
+    const { data: existing } = await admin.from("problem_statements").select("id").eq("title", ps.title).maybeSingle();
+    if (!existing) {
+      await admin.from("problem_statements").insert({ ...ps, is_active: true });
+    }
   }
 
-  console.log(`Seeded ${SKILLS.length} skills, ${ROLES.length} roles, ${PROBLEM_STATEMENTS.length} problem statements.`);
+  console.log("Ensuring admin account exists...");
+  const { data: existingUsers } = await admin.auth.admin.listUsers();
+  let adminUser = existingUsers?.users.find((u) => u.email === ADMIN_EMAIL);
+
+  if (!adminUser) {
+    const { data, error } = await admin.auth.admin.createUser({
+      email: ADMIN_EMAIL,
+      password: ADMIN_PASSWORD,
+      email_confirm: true,
+    });
+    if (error) throw error;
+    adminUser = data.user;
+    console.log(`Created admin auth user: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);
+  }
+
+  if (adminUser) {
+    const { data: existingProfile } = await admin.from("profiles").select("id").eq("id", adminUser.id).maybeSingle();
+    if (!existingProfile) {
+      await admin.from("profiles").insert({
+        id: adminUser.id,
+        full_name: "Platform Admin",
+        college: "N/A",
+        branch: "N/A",
+        year: 0,
+        experience: "Advanced",
+        availability: "Flexible",
+        bio: "Platform administrator account.",
+        is_looking_for_team: false,
+        is_admin: true,
+      });
+      console.log("Created admin profile.");
+    }
+  }
+
+  console.log(
+    `Done. Seeded ${SKILLS.length} skills, ${ROLES.length} roles, ${PROBLEM_STATEMENTS.length} problem statements.`
+  );
+  console.log(`Admin login: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD} — change this password before going live.`);
 }
 
-main();
+main().catch((err) => {
+  console.error("Seed failed:", err);
+  process.exit(1);
+});

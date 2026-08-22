@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getDb } from "@/lib/db";
-import { verifyPassword, issueToken, setSessionCookie } from "@/lib/auth";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -15,23 +14,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
   const { email, password } = parsed.data;
-  const db = getDb();
+  const supabase = createServerSupabase();
 
-  const user = db.prepare("SELECT id, email, password_hash as passwordHash FROM users WHERE email = ?").get(email) as
-    | { id: string; email: string; passwordHash: string }
-    | undefined;
-
-  if (!user || !verifyPassword(password, user.passwordHash)) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error || !data.user || !data.session) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
   }
 
-  const token = issueToken(user.id, user.email);
-  setSessionCookie(token);
-
-  const profile = db.prepare("SELECT id FROM profiles WHERE id = ?").get(user.id);
+  const { data: profile } = await supabase.from("profiles").select("id").eq("id", data.user.id).maybeSingle();
 
   return NextResponse.json({
-    access_token: token,
-    user: { id: user.id, email: user.email, hasProfile: !!profile },
+    access_token: data.session.access_token,
+    user: { id: data.user.id, email: data.user.email, hasProfile: !!profile },
   });
 }

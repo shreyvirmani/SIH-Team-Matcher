@@ -1,43 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getDb } from "@/lib/db";
-import { requireSession, AuthError } from "@/lib/auth";
+import { createServerSupabase } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
+import { withApiError } from "@/lib/api-helpers";
 import { getFullProfile } from "@/lib/profiles";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 // A small "ideal team" role checklist used to compute what's missing.
 // This keeps the feature honest and explainable rather than pretending to
 // be a deep AI judgment call.
 const IDEAL_ROLES = ["Frontend Developer", "Backend Developer", "UI/UX Designer", "ML Engineer"];
+const COMMONLY_NEEDED_SKILLS = ["React", "Node.js", "Python", "UI/UX Design", "Machine Learning", "SQL"];
 
-function buildTeamDetail(db: ReturnType<typeof getDb>, teamId: string) {
-  const team = db.prepare("SELECT * FROM teams WHERE id = ?").get(teamId) as any;
+async function buildTeamDetail(supabase: SupabaseClient, teamId: string) {
+  const { data: team } = await supabase.from("teams").select("*").eq("id", teamId).maybeSingle();
   if (!team) return null;
 
-  const ps = db.prepare("SELECT title FROM problem_statements WHERE id = ?").get(team.problem_statement_id) as
-    | { title: string }
-    | undefined;
+  const { data: ps } = await supabase
+    .from("problem_statements")
+    .select("title")
+    .eq("id", team.problem_statement_id)
+    .maybeSingle();
 
-  const memberRows = db
-    .prepare(`SELECT profile_id as profileId FROM team_members WHERE team_id = ?`)
-    .all(teamId) as { profileId: string }[];
+  const { data: memberRows } = await supabase.from("team_members").select("profile_id").eq("team_id", teamId);
 
-  const members = memberRows.map((m) => {
-    const full = getFullProfile(m.profileId);
-    return {
-      profile_id: full.id,
-      name: full.fullName,
-      roles: full.roles,
-      skills: full.skills,
-      is_leader: full.id === team.leader_profile_id,
-    };
-  });
+  const members = await Promise.all(
+    (memberRows || []).map(async (m: any) => {
+      const full = await getFullProfile(supabase, m.profile_id);
+      if (!full) return null;
+      return {
+        profile_id: full.id,
+        name: full.fullName,
+        avatar_url: full.avatarUrl,
+        roles: full.roles,
+        skills: full.skills,
+        is_leader: full.id === team.leader_profile_id,
+      };
+    })
+  );
+  const validMembers = members.filter(Boolean) as NonNullable<(typeof members)[number]>[];
 
-  const coveredRoles = new Set(members.flatMap((m) => m.roles));
+  const coveredRoles = new Set(validMembers.flatMap((m) => m.roles));
   const missingRoles = IDEAL_ROLES.filter((r) => !coveredRoles.has(r));
 
-  const coveredSkills = new Set(members.flatMap((m) => m.skills));
-  const commonlyNeededSkills = ["React", "Node.js", "Python", "UI/UX Design", "Machine Learning", "SQL"];
-  const missingSkills = commonlyNeededSkills.filter((s) => !coveredSkills.has(s));
+  const coveredSkills = new Set(validMembers.flatMap((m) => m.skills));
+  const missingSkills = COMMONLY_NEEDED_SKILLS.filter((s) => !coveredSkills.has(s));
 
   return {
     team_id: team.id,
@@ -45,22 +52,19 @@ function buildTeamDetail(db: ReturnType<typeof getDb>, teamId: string) {
     leader_profile_id: team.leader_profile_id,
     problem_statement_id: team.problem_statement_id,
     problem_statement_name: ps?.title || null,
-    members,
+    members: validMembers,
     missing_roles_skills: { roles: missingRoles, skills: missingSkills },
   };
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    requireSession();
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
-  const db = getDb();
-  const detail = buildTeamDetail(db, params.id);
-  if (!detail) return NextResponse.json({ error: "Team not found" }, { status: 404 });
-  return NextResponse.json(detail);
+  return withApiError(async () => {
+    await requireUser();
+    const supabase = createServerSupabase();
+    const detail = await buildTeamDetail(supabase, params.id);
+    if (!detail) return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    return NextResponse.json(detail);
+  });
 }
 
 const patchSchema = z.object({
@@ -70,39 +74,32 @@ const patchSchema = z.object({
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  let session;
-  try {
-    session = requireSession();
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  return withApiError(async () => {
+    const session = await requireUser();
+    const supabase = createServerSupabase();
 
-  const db = getDb();
-  const team = db.prepare("SELECT * FROM teams WHERE id = ?").get(params.id) as any;
-  if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
-  if (team.leader_profile_id !== session.id) {
-    return NextResponse.json({ error: "Only the team leader can manage the team" }, { status: 403 });
-  }
-
-  const json = await req.json().catch(() => null);
-  const parsed = patchSchema.safeParse(json);
-  if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
-
-  if (parsed.data.action === "remove_member" && parsed.data.profile_id) {
-    if (parsed.data.profile_id === team.leader_profile_id) {
-      return NextResponse.json({ error: "Team leader cannot remove themselves" }, { status: 400 });
+    const { data: team } = await supabase.from("teams").select("*").eq("id", params.id).maybeSingle();
+    if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    if (team.leader_profile_id !== session.id) {
+      return NextResponse.json({ error: "Only the team leader can manage the team" }, { status: 403 });
     }
-    db.prepare("DELETE FROM team_members WHERE team_id = ? AND profile_id = ?").run(
-      params.id,
-      parsed.data.profile_id
-    );
-  } else if (parsed.data.action === "rename" && parsed.data.name) {
-    db.prepare("UPDATE teams SET name = ?, updated_at = datetime('now') WHERE id = ?").run(
-      parsed.data.name,
-      params.id
-    );
-  }
 
-  return NextResponse.json(buildTeamDetail(db, params.id));
+    const json = await req.json().catch(() => null);
+    const parsed = patchSchema.safeParse(json);
+    if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+
+    if (parsed.data.action === "remove_member" && parsed.data.profile_id) {
+      if (parsed.data.profile_id === team.leader_profile_id) {
+        return NextResponse.json({ error: "Team leader cannot remove themselves" }, { status: 400 });
+      }
+      await supabase.from("team_members").delete().eq("team_id", params.id).eq("profile_id", parsed.data.profile_id);
+    } else if (parsed.data.action === "rename" && parsed.data.name) {
+      await supabase
+        .from("teams")
+        .update({ name: parsed.data.name, updated_at: new Date().toISOString() })
+        .eq("id", params.id);
+    }
+
+    return NextResponse.json(await buildTeamDetail(supabase, params.id));
+  });
 }

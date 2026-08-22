@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getDb } from "@/lib/db";
-import { requireSession, AuthError, getSessionFromRequest } from "@/lib/auth";
-import { getFullProfile, toMatchProfile } from "@/lib/profiles";
+import { createServerSupabase } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
+import { withApiError } from "@/lib/api-helpers";
+import { getFullProfile, toMatchProfile, upsertLookupIds } from "@/lib/profiles";
 import { rankCompatibility } from "@/lib/matching";
+import { lookupGithubUser } from "@/lib/github";
 
 const profileSchema = z.object({
   fullName: z.string().min(2).max(120),
@@ -13,6 +15,8 @@ const profileSchema = z.object({
   experience: z.enum(["Beginner", "Intermediate", "Advanced"]),
   availability: z.enum(["Full-time", "Part-time", "Flexible"]),
   bio: z.string().max(1000).optional().default(""),
+  avatarUrl: z.string().url().optional(),
+  githubUsername: z.string().max(60).optional(),
   skills: z.array(z.string()).min(1, "Select at least one skill"),
   roles: z.array(z.string()).min(1, "Select at least one role"),
   problemStatementIds: z.array(z.number()).default([]),
@@ -20,187 +24,171 @@ const profileSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  let session;
-  try {
-    session = requireSession();
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  return withApiError(async () => {
+    const session = await requireUser();
+    const supabase = createServerSupabase();
 
-  const json = await req.json().catch(() => null);
-  const parsed = profileSchema.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid input" }, { status: 400 });
-  }
-  const data = parsed.data;
-  const db = getDb();
+    const json = await req.json().catch(() => null);
+    const parsed = profileSchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid input" }, { status: 400 });
+    }
+    const data = parsed.data;
 
-  const existing = db.prepare("SELECT id FROM profiles WHERE id = ?").get(session.id);
-  if (existing) {
-    return NextResponse.json({ error: "Profile already exists. Use PUT to update." }, { status: 409 });
-  }
+    const { data: existing } = await supabase.from("profiles").select("id").eq("id", session.id).maybeSingle();
+    if (existing) {
+      return NextResponse.json({ error: "Profile already exists. Use PUT to update." }, { status: 409 });
+    }
 
-  const upsertLookups = (table: "skills" | "roles", names: string[]) => {
-    const ins = db.prepare(`INSERT OR IGNORE INTO ${table} (name) VALUES (?)`);
-    const sel = db.prepare(`SELECT id FROM ${table} WHERE name = ?`);
-    return names.map((n) => {
-      ins.run(n);
-      return (sel.get(n) as any).id as number;
+    let githubPublicRepos: number | null = null;
+    if (data.githubUsername) {
+      const gh = await lookupGithubUser(data.githubUsername);
+      githubPublicRepos = gh.publicRepos;
+    }
+
+    const { error: insertError } = await supabase.from("profiles").insert({
+      id: session.id,
+      full_name: data.fullName,
+      college: data.college,
+      branch: data.branch,
+      year: data.year,
+      experience: data.experience,
+      availability: data.availability,
+      bio: data.bio,
+      avatar_url: data.avatarUrl,
+      github_username: data.githubUsername || null,
+      github_public_repos: githubPublicRepos,
+      is_looking_for_team: data.isLookingForTeam,
     });
-  };
+    if (insertError) return NextResponse.json({ error: insertError.message }, { status: 400 });
 
-  const tx = db.transaction(() => {
-    db.prepare(
-      `INSERT INTO profiles (id, full_name, college, branch, year, experience, availability, bio, is_looking_for_team)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      session!.id,
-      data.fullName,
-      data.college,
-      data.branch,
-      data.year,
-      data.experience,
-      data.availability,
-      data.bio,
-      data.isLookingForTeam ? 1 : 0
-    );
+    const skillIds = await upsertLookupIds(supabase, "skills", data.skills);
+    if (skillIds.length > 0) {
+      await supabase.from("user_skills").insert(skillIds.map((skill_id) => ({ profile_id: session.id, skill_id })));
+    }
 
-    const skillIds = upsertLookups("skills", data.skills);
-    const insSkill = db.prepare("INSERT OR IGNORE INTO user_skills (profile_id, skill_id) VALUES (?, ?)");
-    for (const sid of skillIds) insSkill.run(session!.id, sid);
+    const roleIds = await upsertLookupIds(supabase, "roles", data.roles);
+    if (roleIds.length > 0) {
+      await supabase.from("user_roles").insert(roleIds.map((role_id) => ({ profile_id: session.id, role_id })));
+    }
 
-    const roleIds = upsertLookups("roles", data.roles);
-    const insRole = db.prepare("INSERT OR IGNORE INTO user_roles (profile_id, role_id) VALUES (?, ?)");
-    for (const rid of roleIds) insRole.run(session!.id, rid);
+    if (data.problemStatementIds.length > 0) {
+      await supabase
+        .from("profile_problem_statements")
+        .insert(data.problemStatementIds.map((problem_statement_id) => ({ profile_id: session.id, problem_statement_id })));
+    }
 
-    const insPS = db.prepare(
-      "INSERT OR IGNORE INTO profile_problem_statements (profile_id, problem_statement_id) VALUES (?, ?)"
-    );
-    for (const psid of data.problemStatementIds) insPS.run(session!.id, psid);
+    const profile = await getFullProfile(supabase, session.id);
+    return NextResponse.json(profile, { status: 201 });
   });
-  tx();
-
-  const profile = getFullProfile(session.id);
-  return NextResponse.json(profile, { status: 201 });
 }
 
 export async function GET(req: NextRequest) {
-  const session = getSessionFromRequest();
-  if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  return withApiError(async () => {
+    const session = await requireUser();
+    const supabase = createServerSupabase();
 
-  const { searchParams } = new URL(req.url);
-  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-  const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "12", 10)));
-  const search = searchParams.get("search")?.trim();
-  const skillsFilter = searchParams.getAll("skills");
-  const rolesFilter = searchParams.getAll("roles");
-  const college = searchParams.get("college")?.trim();
-  const availability = searchParams.get("availability")?.trim();
-  const problemStatementId = searchParams.get("problem_statement_id");
+    const { searchParams } = new URL(req.url);
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "12", 10)));
+    const search = searchParams.get("search")?.trim();
+    const skillsFilter = searchParams.getAll("skills");
+    const rolesFilter = searchParams.getAll("roles");
+    const college = searchParams.get("college")?.trim();
+    const availability = searchParams.get("availability")?.trim();
+    const problemStatementId = searchParams.get("problem_statement_id");
 
-  const db = getDb();
+    let query = supabase
+      .from("profiles")
+      .select("id")
+      .neq("id", session.id)
+      .eq("is_looking_for_team", true);
 
-  // Base candidate set: everyone except the current user who is looking for a team.
-  let candidateIds = db
-    .prepare(`SELECT id FROM profiles WHERE id != ? AND is_looking_for_team = 1`)
-    .all(session.id)
-    .map((r: any) => r.id as string);
+    if (search) {
+      query = query.or(`full_name.ilike.%${search}%,college.ilike.%${search}%,bio.ilike.%${search}%`);
+    }
+    if (college) query = query.ilike("college", college);
+    if (availability) query = query.eq("availability", availability);
 
-  if (search) {
-    const like = `%${search.toLowerCase()}%`;
-    const matches = db
-      .prepare(
-        `SELECT id FROM profiles WHERE id != ? AND (lower(full_name) LIKE ? OR lower(college) LIKE ? OR lower(bio) LIKE ?)`
-      )
-      .all(session.id, like, like, like)
-      .map((r: any) => r.id as string);
-    candidateIds = candidateIds.filter((id) => matches.includes(id));
-  }
+    const { data: baseRows } = await query;
+    let candidateIds = (baseRows || []).map((r: any) => r.id as string);
 
-  if (college) {
-    const matches = db
-      .prepare(`SELECT id FROM profiles WHERE lower(college) = lower(?)`)
-      .all(college)
-      .map((r: any) => r.id as string);
-    candidateIds = candidateIds.filter((id) => matches.includes(id));
-  }
+    if (skillsFilter.length > 0 && candidateIds.length > 0) {
+      const { data: matches } = await supabase
+        .from("user_skills")
+        .select("profile_id, skills!inner(name)")
+        .in("skills.name", skillsFilter);
+      const matchIds = new Set((matches || []).map((r: any) => r.profile_id));
+      candidateIds = candidateIds.filter((id) => matchIds.has(id));
+    }
 
-  if (availability) {
-    const matches = db
-      .prepare(`SELECT id FROM profiles WHERE availability = ?`)
-      .all(availability)
-      .map((r: any) => r.id as string);
-    candidateIds = candidateIds.filter((id) => matches.includes(id));
-  }
+    if (rolesFilter.length > 0 && candidateIds.length > 0) {
+      const { data: matches } = await supabase
+        .from("user_roles")
+        .select("profile_id, roles!inner(name)")
+        .in("roles.name", rolesFilter);
+      const matchIds = new Set((matches || []).map((r: any) => r.profile_id));
+      candidateIds = candidateIds.filter((id) => matchIds.has(id));
+    }
 
-  if (skillsFilter.length > 0) {
-    const placeholders = skillsFilter.map(() => "?").join(",");
-    const matches = db
-      .prepare(
-        `SELECT DISTINCT us.profile_id as id FROM user_skills us JOIN skills s ON s.id = us.skill_id WHERE s.name IN (${placeholders})`
-      )
-      .all(...skillsFilter)
-      .map((r: any) => r.id as string);
-    candidateIds = candidateIds.filter((id) => matches.includes(id));
-  }
+    if (problemStatementId && candidateIds.length > 0) {
+      const { data: matches } = await supabase
+        .from("profile_problem_statements")
+        .select("profile_id")
+        .eq("problem_statement_id", Number(problemStatementId));
+      const matchIds = new Set((matches || []).map((r: any) => r.profile_id));
+      candidateIds = candidateIds.filter((id) => matchIds.has(id));
+    }
 
-  if (rolesFilter.length > 0) {
-    const placeholders = rolesFilter.map(() => "?").join(",");
-    const matches = db
-      .prepare(
-        `SELECT DISTINCT ur.profile_id as id FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE r.name IN (${placeholders})`
-      )
-      .all(...rolesFilter)
-      .map((r: any) => r.id as string);
-    candidateIds = candidateIds.filter((id) => matches.includes(id));
-  }
+    // AI-powered compatibility scoring against the current user's profile.
+    // Graceful degradation: if the current user has no profile yet, skip scoring.
+    const { data: currentProfileExists } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", session.id)
+      .maybeSingle();
 
-  if (problemStatementId) {
-    const matches = db
-      .prepare(`SELECT profile_id as id FROM profile_problem_statements WHERE problem_statement_id = ?`)
-      .all(Number(problemStatementId))
-      .map((r: any) => r.id as string);
-    candidateIds = candidateIds.filter((id) => matches.includes(id));
-  }
+    let scored: { id: string; score?: number; rationale?: string }[];
 
-  // AI-powered compatibility scoring against the current user's profile.
-  // Graceful degradation: if the current user has no profile yet, skip scoring.
-  const currentProfileExists = db.prepare("SELECT id FROM profiles WHERE id = ?").get(session.id);
-  let scored: { id: string; score?: number; rationale?: string }[];
+    if (currentProfileExists && candidateIds.length > 0) {
+      const currentMatch = await toMatchProfile(supabase, session.id);
+      const targets = await Promise.all(candidateIds.map((id) => toMatchProfile(supabase, id)));
+      const ranked = rankCompatibility(currentMatch, targets);
+      scored = ranked.map((r) => ({ id: r.profileId, score: r.score, rationale: r.rationale }));
+    } else {
+      scored = candidateIds.map((id) => ({ id }));
+    }
 
-  if (currentProfileExists && candidateIds.length > 0) {
-    const currentMatch = toMatchProfile(session.id);
-    const targets = candidateIds.map((id) => toMatchProfile(id));
-    const ranked = rankCompatibility(currentMatch, targets);
-    scored = ranked.map((r) => ({ id: r.profileId, score: r.score, rationale: r.rationale }));
-  } else {
-    scored = candidateIds.map((id) => ({ id }));
-  }
+    const total = scored.length;
+    const startIdx = (page - 1) * limit;
+    const pageIds = scored.slice(startIdx, startIdx + limit);
 
-  const total = scored.length;
-  const startIdx = (page - 1) * limit;
-  const pageIds = scored.slice(startIdx, startIdx + limit);
+    const profiles = await Promise.all(
+      pageIds.map(async (entry) => {
+        const full = await getFullProfile(supabase, entry.id);
+        if (!full) return null;
+        return {
+          profile_id: full.id,
+          user_id: full.id,
+          name: full.fullName,
+          college: full.college,
+          branch: full.branch,
+          year: full.year,
+          experience: full.experience,
+          availability: full.availability,
+          bio: full.bio,
+          avatar_url: full.avatarUrl,
+          github_username: full.githubUsername,
+          github_public_repos: full.githubPublicRepos,
+          skills: full.skills,
+          roles: full.roles,
+          problem_statement_names: full.problemStatements.map((p) => p.title),
+          compatibility_score: entry.score,
+          compatibility_rationale: entry.rationale,
+        };
+      })
+    );
 
-  const profiles = pageIds.map((entry) => {
-    const full = getFullProfile(entry.id);
-    return {
-      profile_id: full.id,
-      user_id: full.id,
-      name: full.fullName,
-      college: full.college,
-      branch: full.branch,
-      year: full.year,
-      experience: full.experience,
-      availability: full.availability,
-      bio: full.bio,
-      skills: full.skills,
-      roles: full.roles,
-      problem_statement_names: full.problemStatements.map((p: any) => p.title),
-      compatibility_score: entry.score,
-      compatibility_rationale: entry.rationale,
-    };
+    return NextResponse.json({ profiles: profiles.filter(Boolean), total, page, limit });
   });
-
-  return NextResponse.json({ profiles, total, page, limit });
 }

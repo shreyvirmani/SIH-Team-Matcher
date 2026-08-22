@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "crypto";
 import { z } from "zod";
-import { getDb } from "@/lib/db";
-import { hashPassword, issueToken, setSessionCookie } from "@/lib/auth";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -13,25 +11,30 @@ export async function POST(req: NextRequest) {
   const json = await req.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message || "Invalid input" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid input" }, { status: 400 });
   }
   const { email, password } = parsed.data;
-  const db = getDb();
+  const supabase = createServerSupabase();
 
-  const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
-  if (existing) {
-    return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (error) {
+    // Supabase returns a generic message for existing accounts to avoid
+    // leaking which emails are registered; surface it as-is.
+    return NextResponse.json({ error: error.message }, { status: error.status || 400 });
+  }
+  if (!data.user) {
+    return NextResponse.json({ error: "Signup failed — please try again" }, { status: 500 });
   }
 
-  const id = randomUUID();
-  const passwordHash = hashPassword(password);
-  db.prepare("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)").run(id, email, passwordHash);
-
-  const token = issueToken(id, email);
-  setSessionCookie(token);
-
-  return NextResponse.json({ user_id: id, email }, { status: 201 });
+  return NextResponse.json(
+    {
+      user_id: data.user.id,
+      email: data.user.email,
+      // If email confirmation is enabled on the Supabase project, there is
+      // no active session yet — the frontend should tell the user to check
+      // their inbox rather than redirect straight to onboarding.
+      email_confirmation_required: !data.session,
+    },
+    { status: 201 }
+  );
 }

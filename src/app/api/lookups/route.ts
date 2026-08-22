@@ -1,17 +1,26 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 export async function GET() {
-  const db = getDb();
-  const skills = db.prepare("SELECT id, name FROM skills ORDER BY name").all();
-  const roles = db.prepare("SELECT id, name FROM roles ORDER BY name").all();
-  const problemStatements = db
-    .prepare("SELECT id, title, description, category FROM problem_statements WHERE is_active = 1 ORDER BY title")
-    .all();
-  const colleges = db
-    .prepare("SELECT DISTINCT college FROM profiles WHERE college != 'N/A' ORDER BY college")
-    .all()
-    .map((r: any) => r.college);
+  const supabase = createServerSupabase();
 
-  return NextResponse.json({ skills, roles, problemStatements, colleges });
+  const [{ data: skills }, { data: roles }, { data: problemStatements }, { data: collegeRows }] = await Promise.all([
+    supabase.from("skills").select("id, name").order("name"),
+    supabase.from("roles").select("id, name").order("name"),
+    supabase
+      .from("problem_statements")
+      .select("id, title, description, category")
+      .eq("is_active", true)
+      .order("title"),
+    supabase.from("profiles").select("college").neq("college", "N/A"),
+  ]);
+
+  const colleges = [...new Set((collegeRows || []).map((r: any) => r.college))].sort();
+
+  return NextResponse.json({
+    skills: skills || [],
+    roles: roles || [],
+    problemStatements: problemStatements || [],
+    colleges,
+  });
 }

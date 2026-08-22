@@ -1,92 +1,133 @@
-import { randomUUID } from "crypto";
-import { getDb } from "./db";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ProfileForMatch } from "./matching";
+import { createAdminSupabase } from "./supabase/admin";
 
-export interface ProfileRow {
-  id: string;
-  fullName: string;
-  college: string;
-  branch: string;
-  year: number;
-  experience: string;
-  availability: string;
-  bio: string;
-  isLookingForTeam: boolean;
-  isAdmin: boolean;
-  createdAt: string;
-  updatedAt: string;
+// All functions here take an already-authenticated Supabase client (server
+// or admin) so every call is naturally scoped by RLS as the calling user —
+// there's no separate "trusted" data layer to keep in sync with policies.
+
+export async function getSkillsForProfile(supabase: SupabaseClient, profileId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from("user_skills")
+    .select("skills(name)")
+    .eq("profile_id", profileId);
+  return (data || []).map((r: any) => r.skills.name);
 }
 
-export function getSkillsForProfile(profileId: string): string[] {
-  const db = getDb();
-  return db
-    .prepare(
-      `SELECT s.name FROM user_skills us JOIN skills s ON s.id = us.skill_id WHERE us.profile_id = ?`
-    )
-    .all(profileId)
-    .map((r: any) => r.name);
+export async function getRolesForProfile(supabase: SupabaseClient, profileId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from("user_roles")
+    .select("roles(name)")
+    .eq("profile_id", profileId);
+  return (data || []).map((r: any) => r.roles.name);
 }
 
-export function getRolesForProfile(profileId: string): string[] {
-  const db = getDb();
-  return db
-    .prepare(`SELECT r.name FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.profile_id = ?`)
-    .all(profileId)
-    .map((r: any) => r.name);
+export async function getProblemStatementsForProfile(
+  supabase: SupabaseClient,
+  profileId: string
+): Promise<{ id: number; title: string }[]> {
+  const { data } = await supabase
+    .from("profile_problem_statements")
+    .select("problem_statements(id, title)")
+    .eq("profile_id", profileId);
+  return (data || []).map((r: any) => ({ id: r.problem_statements.id, title: r.problem_statements.title }));
 }
 
-export function getProblemStatementsForProfile(profileId: string): { id: number; title: string }[] {
-  const db = getDb();
-  return db
-    .prepare(
-      `SELECT ps.id, ps.title FROM profile_problem_statements pps
-       JOIN problem_statements ps ON ps.id = pps.problem_statement_id
-       WHERE pps.profile_id = ?`
-    )
-    .all(profileId) as { id: number; title: string }[];
-}
-
-export function getFullProfile(profileId: string) {
-  const db = getDb();
-  const row = db
-    .prepare(
-      `SELECT p.id, p.full_name as fullName, p.college, p.branch, p.year, p.experience,
-              p.availability, p.bio, p.is_looking_for_team as isLookingForTeam,
-              p.is_admin as isAdmin, p.created_at as createdAt, p.updated_at as updatedAt,
-              u.email as email
-       FROM profiles p JOIN users u ON u.id = p.id WHERE p.id = ?`
-    )
-    .get(profileId) as any;
+export async function getFullProfile(supabase: SupabaseClient, profileId: string) {
+  const { data: row } = await supabase.from("profiles").select("*").eq("id", profileId).maybeSingle();
   if (!row) return null;
-  return {
-    ...row,
-    isLookingForTeam: !!row.isLookingForTeam,
-    isAdmin: !!row.isAdmin,
-    skills: getSkillsForProfile(profileId),
-    roles: getRolesForProfile(profileId),
-    problemStatements: getProblemStatementsForProfile(profileId),
-  };
-}
 
-export function toMatchProfile(profileId: string): ProfileForMatch {
-  const db = getDb();
-  const row = db
-    .prepare(`SELECT id, full_name as fullName, experience, availability FROM profiles WHERE id = ?`)
-    .get(profileId) as any;
+  const [skills, roles, problemStatements] = await Promise.all([
+    getSkillsForProfile(supabase, profileId),
+    getRolesForProfile(supabase, profileId),
+    getProblemStatementsForProfile(supabase, profileId),
+  ]);
+
   return {
     id: row.id,
-    fullName: row.fullName,
+    fullName: row.full_name,
+    college: row.college,
+    branch: row.branch,
+    year: row.year,
     experience: row.experience,
     availability: row.availability,
-    skills: getSkillsForProfile(profileId),
-    roles: getRolesForProfile(profileId),
-    problemStatementIds: getProblemStatementsForProfile(profileId).map((p) => p.id),
+    bio: row.bio,
+    avatarUrl: row.avatar_url,
+    githubUsername: row.github_username,
+    githubPublicRepos: row.github_public_repos,
+    isLookingForTeam: row.is_looking_for_team,
+    isAdmin: row.is_admin,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    skills,
+    roles,
+    problemStatements,
   };
 }
 
-export function createNotification(receiverProfileId: string, type: string, message: string) {
-  const db = getDb();
-  db.prepare(
-    `INSERT INTO notifications (id, receiver_profile_id, type, message) VALUES (?, ?, ?, ?)`
-  ).run(randomUUID(), receiverProfileId, type, message);
+export async function toMatchProfile(supabase: SupabaseClient, profileId: string): Promise<ProfileForMatch> {
+  const { data: row, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, experience, availability")
+    .eq("id", profileId)
+    .single();
+  if (error || !row) throw new Error(`Profile not found: ${profileId}`);
+
+  const [skills, roles, problemStatements] = await Promise.all([
+    getSkillsForProfile(supabase, profileId),
+    getRolesForProfile(supabase, profileId),
+    getProblemStatementsForProfile(supabase, profileId),
+  ]);
+
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    experience: row.experience,
+    availability: row.availability,
+    skills,
+    roles,
+    problemStatementIds: problemStatements.map((p) => p.id),
+  };
+}
+
+/**
+ * Notifications are a system-triggered side effect (user A's action creates
+ * a row for user B), which is deliberately NOT something RLS grants to an
+ * ordinary authenticated user (that would let anyone spam anyone). This one
+ * write path uses the service-role client instead, after the calling route
+ * has already done its own authorization check on the triggering action.
+ */
+export async function createNotification(
+  _supabase: SupabaseClient,
+  receiverProfileId: string,
+  type: string,
+  message: string
+) {
+  const admin = createAdminSupabase();
+  await admin.from("notifications").insert({ receiver_profile_id: receiverProfileId, type, message });
+}
+
+/**
+ * Upserts skill/role names into their lookup tables and returns the ids.
+ * Used when a profile references a skill/role name that doesn't exist yet.
+ */
+export async function upsertLookupIds(
+  supabase: SupabaseClient,
+  table: "skills" | "roles",
+  names: string[]
+): Promise<number[]> {
+  if (names.length === 0) return [];
+  const { data: existing } = await supabase.from(table).select("id, name").in("name", names);
+  const existingMap = new Map((existing || []).map((r: any) => [r.name, r.id]));
+  const missing = names.filter((n) => !existingMap.has(n));
+
+  if (missing.length > 0) {
+    const { data: inserted } = await supabase
+      .from(table)
+      .insert(missing.map((name) => ({ name })))
+      .select("id, name");
+    for (const r of inserted || []) existingMap.set((r as any).name, (r as any).id);
+  }
+
+  return names.map((n) => existingMap.get(n)!);
 }

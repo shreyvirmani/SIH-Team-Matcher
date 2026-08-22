@@ -1,0 +1,3 @@
+-- Migration 0001: initial schema. Identical to src/db/schema.postgres.sql
+-- at the time this migration was cut. For a brand new Supabase project,
+-- just run schema.postgres.sql directly instead of replaying migrations.
