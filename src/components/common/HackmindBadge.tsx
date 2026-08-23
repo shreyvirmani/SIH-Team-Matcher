@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 
@@ -124,9 +124,8 @@ export default function HackmindBadge({
           href="https://instagram.com/hackmind_ai"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs font-medium text-pink-300 hover:text-pink-200 transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-pink-300 hover:text-pink-200 transition-colors"
         >
-          <span>📸</span>
           <span>Follow @hackmind_ai</span>
         </a>
       </div>

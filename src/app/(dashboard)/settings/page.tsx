@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -8,6 +8,7 @@ import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import Badge from "@/components/ui/badge";
 import Avatar from "@/components/profile/Avatar";
+import BackButton from "@/components/common/BackButton";
 import { useSession } from "@/lib/use-session";
 import { apiFetch } from "@/lib/api-client";
 
@@ -67,32 +68,31 @@ export default function SettingsPage() {
       await apiFetch("/api/auth/logout", { method: "POST" });
       await refresh();
       router.push("/login");
-    } catch {
-      router.push("/login");
-    } finally {
+    } catch (err) {
+      console.error("Logout error:", err);
       setLoggingOut(false);
     }
   };
 
-  if (!user) {
-    return <div className="text-center text-slate-400 py-12">Loading settings…</div>;
-  }
+  if (!user) return null;
 
-  const memberSince = user.createdAt
-    ? new Date(user.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
-    : "N/A";
-  const lastSignIn = user.lastSignInAt
-    ? new Date(user.lastSignInAt).toLocaleString("en-US", {
-        year: "numeric",
+  const rawLastSignIn = (user as any).lastSignInAt || (user as any).last_sign_in_at;
+  const lastSignIn = rawLastSignIn
+    ? new Date(rawLastSignIn).toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
+        year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
       })
     : "Active now";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6 pb-16 pt-2">
+      <div className="flex items-center justify-between">
+        <BackButton href="/discover" label="Back to Discover" />
+      </div>
+
       <div>
         <h1 className="text-2xl font-bold text-white">Account Settings</h1>
         <p className="text-sm text-slate-400">
@@ -116,62 +116,48 @@ export default function SettingsPage() {
               </div>
               <p className="text-sm text-slate-400">{user.email}</p>
               {profile?.college && (
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {profile.college} • {profile.branch} (Year {profile.year})
-                </p>
+                <p className="text-xs text-slate-500 mt-0.5">🏛️ {profile.college}</p>
               )}
             </div>
           </div>
           <Link href="/my-profile">
             <Button variant="outline" className="text-xs">
-              ✏ Edit Public Profile
+              Edit Profile Details
             </Button>
           </Link>
         </div>
 
-        {/* User Account Metadata Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-5 text-sm">
-          <div className="rounded-lg bg-white/[0.02] border border-white/5 p-3.5">
-            <span className="text-xs text-slate-500 font-medium block mb-1">User Identifier (UUID)</span>
-            <div className="flex items-center justify-between gap-2">
-              <code className="text-xs text-slate-300 font-mono truncate">{user.id}</code>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 text-xs text-slate-400">
+          <div>
+            <span className="font-medium text-slate-300">User ID:</span>
+            <div className="mt-1 flex items-center gap-2 font-mono text-[11px] text-slate-400 bg-white/5 px-2 py-1 rounded border border-white/5">
+              <span className="truncate">{user.id}</span>
               <button
                 type="button"
                 onClick={handleCopyId}
-                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors whitespace-nowrap font-medium"
+                className="text-indigo-400 hover:text-indigo-300 shrink-0"
               >
                 {copiedId ? "✓ Copied" : "Copy"}
               </button>
             </div>
           </div>
-
-          <div className="rounded-lg bg-white/[0.02] border border-white/5 p-3.5">
-            <span className="text-xs text-slate-500 font-medium block mb-1">Registered Email</span>
-            <span className="text-slate-200 font-medium text-xs sm:text-sm">{user.email}</span>
-          </div>
-
-          <div className="rounded-lg bg-white/[0.02] border border-white/5 p-3.5">
-            <span className="text-xs text-slate-500 font-medium block mb-1">Member Since</span>
-            <span className="text-slate-200 text-xs sm:text-sm">{memberSince}</span>
-          </div>
-
-          <div className="rounded-lg bg-white/[0.02] border border-white/5 p-3.5">
-            <span className="text-xs text-slate-500 font-medium block mb-1">Last Active Session</span>
-            <span className="text-slate-200 text-xs sm:text-sm">{lastSignIn}</span>
+          <div>
+            <span className="font-medium text-slate-300">Last Active:</span>
+            <p className="mt-1 text-slate-300">{lastSignIn}</p>
           </div>
         </div>
       </Card>
 
-      {/* Security & Password */}
+      {/* Security: Change Password */}
       <Card className="p-6">
-        <h2 className="text-lg font-bold text-white mb-1">Security & Password</h2>
-        <p className="text-xs text-slate-400 mb-5">
-          Update your login password. We recommend choosing a strong, unique password.
+        <h2 className="text-base font-semibold text-white">Security & Password</h2>
+        <p className="mt-1 text-xs text-slate-400">
+          Update your password to keep your account secure.
         </p>
 
         {passwordMsg && (
           <div
-            className={`rounded-xl border p-3.5 mb-5 text-sm font-medium ${
+            className={`mt-4 rounded-xl border p-3 text-xs font-medium ${
               passwordMsg.type === "success"
                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
                 : "border-red-500/30 bg-red-500/10 text-red-300"
@@ -181,68 +167,47 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
+        <form onSubmit={handleChangePassword} className="mt-4 flex flex-col gap-4 max-w-md">
           <Input
-            label="New password"
+            label="New Password"
             type="password"
             required
-            placeholder="At least 6 characters"
+            autoComplete="new-password"
+            placeholder="Minimum 6 characters"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
           />
           <Input
-            label="Confirm new password"
+            label="Confirm New Password"
             type="password"
             required
-            placeholder="Re-enter your new password"
+            autoComplete="new-password"
+            placeholder="Re-type new password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
           />
-          <Button type="submit" loading={passwordLoading} disabled={!newPassword}>
-            Update Password
-          </Button>
+          <div>
+            <Button type="submit" loading={passwordLoading} className="text-xs">
+              Update Password
+            </Button>
+          </div>
         </form>
       </Card>
 
-      {/* Quick Navigation & Preferences */}
-      <Card className="p-6 space-y-4">
-        <h2 className="text-lg font-bold text-white">Platform Navigation</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <Link
-            href="/my-profile"
-            className="flex flex-col gap-1 rounded-xl border border-white/5 bg-white/[0.02] p-4 hover:border-indigo-500/40 hover:bg-white/5 transition-all"
+      {/* Session Management */}
+      <Card className="p-6 border-red-500/20">
+        <h2 className="text-base font-semibold text-white">Session & Sign Out</h2>
+        <p className="mt-1 text-xs text-slate-400">
+          Signing out will end your active session on this device.
+        </p>
+        <div className="mt-4">
+          <Button
+            variant="danger"
+            loading={loggingOut}
+            onClick={handleLogout}
+            className="text-xs"
           >
-            <span className="text-sm font-semibold text-white">👤 My Profile</span>
-            <span className="text-xs text-slate-400">Edit skills, bio, & problem statements</span>
-          </Link>
-          <Link
-            href="/my-team"
-            className="flex flex-col gap-1 rounded-xl border border-white/5 bg-white/[0.02] p-4 hover:border-indigo-500/40 hover:bg-white/5 transition-all"
-          >
-            <span className="text-sm font-semibold text-white">👥 My Team</span>
-            <span className="text-xs text-slate-400">View team members & realtime chat</span>
-          </Link>
-          <Link
-            href="/notifications"
-            className="flex flex-col gap-1 rounded-xl border border-white/5 bg-white/[0.02] p-4 hover:border-indigo-500/40 hover:bg-white/5 transition-all"
-          >
-            <span className="text-sm font-semibold text-white">🔔 Notifications</span>
-            <span className="text-xs text-slate-400">Manage invitations & team alerts</span>
-          </Link>
-        </div>
-      </Card>
-
-      {/* Session Management & Logout */}
-      <Card className="p-6 border-red-500/20 bg-red-950/10">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-base font-bold text-white">Session Management</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Signing out will end your authenticated session on this browser.
-            </p>
-          </div>
-          <Button variant="outline" onClick={handleLogout} loading={loggingOut} className="border-red-500/40 text-red-300 hover:bg-red-500/10 hover:text-white">
-            🚪 Log Out
+            Sign out of SIH Matcher
           </Button>
         </div>
       </Card>

@@ -1,5 +1,6 @@
 ﻿import type { Metadata } from "next";
 import Header from "@/components/common/Header";
+import MobileBottomNav from "@/components/common/MobileBottomNav";
 import { SessionProvider } from "@/lib/use-session";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -68,7 +69,8 @@ export default function RootLayout({
         <SessionProvider>
           <div className="mesh-bg" />
           <Header />
-          <main className="relative min-h-[calc(100vh-57px)]">{children}</main>
+          <main className="relative min-h-[calc(100vh-57px)] pb-16 md:pb-0">{children}</main>
+          <MobileBottomNav />
         </SessionProvider>
       </body>
     </html>

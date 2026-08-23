@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
@@ -7,6 +7,7 @@ import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import Card from "@/components/ui/card";
 import SIHLogo from "@/components/common/SIHLogo";
+import BackButton from "@/components/common/BackButton";
 import GoogleAuthButton from "@/components/auth/GoogleAuthButton";
 import { useSession } from "@/lib/use-session";
 import { apiFetch } from "@/lib/api-client";
@@ -52,10 +53,11 @@ function LoginForm() {
   };
 
   return (
-    <div className="mx-auto flex max-w-md flex-col justify-center px-4 py-16">
-      <div className="flex justify-center mb-6">
+    <div className="mx-auto flex max-w-md flex-col justify-center px-4 py-12 space-y-4">
+      <div className="flex items-center justify-between">
+        <BackButton href="/" label="Back to Home" />
         <Link href="/">
-          <SIHLogo size="md" showText={true} />
+          <SIHLogo size="sm" showText={true} />
         </Link>
       </div>
 

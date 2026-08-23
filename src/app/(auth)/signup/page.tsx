@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
@@ -7,6 +7,7 @@ import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import Card from "@/components/ui/card";
 import SIHLogo from "@/components/common/SIHLogo";
+import BackButton from "@/components/common/BackButton";
 import GoogleAuthButton from "@/components/auth/GoogleAuthButton";
 import { useSession } from "@/lib/use-session";
 import { apiFetch } from "@/lib/api-client";
@@ -17,10 +18,9 @@ function SignupForm() {
   const { user, profile, loading: sessionLoading, refresh } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [confirmationRequired, setConfirmationRequired] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   useEffect(() => {
     const errorParam = searchParams.get("error");
@@ -38,22 +38,18 @@ function SignupForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (password !== confirm) {
-      setError("Passwords do not match");
-      return;
-    }
     setLoading(true);
     try {
       const res = await apiFetch("/api/auth/signup", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
-      if (res.email_confirmation_required) {
-        setConfirmationRequired(true);
-      } else {
-        await refresh();
-        router.replace("/onboarding");
+      if (res.user && !res.user.hasSession) {
+        setEmailSent(true);
+        return;
       }
+      await refresh();
+      router.replace("/onboarding");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -61,12 +57,13 @@ function SignupForm() {
     }
   };
 
-  if (confirmationRequired) {
+  if (emailSent) {
     return (
-      <div className="mx-auto flex max-w-md flex-col justify-center px-4 py-16">
-        <div className="flex justify-center mb-6">
+      <div className="mx-auto flex max-w-md flex-col justify-center px-4 py-12 space-y-4">
+        <div className="flex items-center justify-between">
+          <BackButton href="/" label="Back to Home" />
           <Link href="/">
-            <SIHLogo size="md" showText={true} />
+            <SIHLogo size="sm" showText={true} />
           </Link>
         </div>
         <Card className="p-8 text-center">
@@ -86,10 +83,11 @@ function SignupForm() {
   }
 
   return (
-    <div className="mx-auto flex max-w-md flex-col justify-center px-4 py-16">
-      <div className="flex justify-center mb-6">
+    <div className="mx-auto flex max-w-md flex-col justify-center px-4 py-12 space-y-4">
+      <div className="flex items-center justify-between">
+        <BackButton href="/" label="Back to Home" />
         <Link href="/">
-          <SIHLogo size="md" showText={true} />
+          <SIHLogo size="sm" showText={true} />
         </Link>
       </div>
 
@@ -124,18 +122,9 @@ function SignupForm() {
             type="password"
             required
             autoComplete="new-password"
-            placeholder="At least 8 characters"
+            placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-          />
-          <Input
-            label="Confirm password"
-            type="password"
-            required
-            autoComplete="new-password"
-            placeholder="Re-enter your password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
           />
           {error && (
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
@@ -143,7 +132,7 @@ function SignupForm() {
             </div>
           )}
           <Button type="submit" loading={loading} className="mt-2 w-full">
-            Create account
+            Sign up
           </Button>
         </form>
         <p className="mt-6 text-center text-xs text-slate-400">

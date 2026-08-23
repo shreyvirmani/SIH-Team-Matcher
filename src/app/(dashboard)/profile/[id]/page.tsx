@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -6,6 +6,7 @@ import Card from "@/components/ui/card";
 import Badge from "@/components/ui/badge";
 import Button from "@/components/ui/button";
 import Avatar from "@/components/profile/Avatar";
+import BackButton from "@/components/common/BackButton";
 import { apiFetch } from "@/lib/api-client";
 
 export default function StudentProfilePage() {
@@ -77,7 +78,11 @@ export default function StudentProfilePage() {
   if (!profile) return <p className="text-slate-400 py-12 text-center">Loading profile…</p>;
 
   return (
-    <div className="mx-auto max-w-2xl pb-16 pt-4">
+    <div className="mx-auto max-w-2xl pb-16 pt-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <BackButton href="/discover" label="Back to Discover" />
+      </div>
+
       {feedback && (
         <div
           className={`mb-5 rounded-xl border p-4 text-sm font-medium ${

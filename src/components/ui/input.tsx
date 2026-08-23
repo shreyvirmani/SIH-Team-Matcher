@@ -5,9 +5,10 @@ import { InputHTMLAttributes, forwardRef } from "react";
 interface Props extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
+  helperText?: string;
 }
 
-const Input = forwardRef<HTMLInputElement, Props>(({ label, error, className = "", id, ...rest }, ref) => {
+const Input = forwardRef<HTMLInputElement, Props>(({ label, error, helperText, className = "", id, ...rest }, ref) => {
   return (
     <div className="flex flex-col gap-1">
       {label && (
@@ -24,6 +25,7 @@ const Input = forwardRef<HTMLInputElement, Props>(({ label, error, className = "
         {...rest}
       />
       {error && <span className="text-xs text-red-400">{error}</span>}
+      {helperText && !error && <span className="text-xs text-slate-400">{helperText}</span>}
     </div>
   );
 });

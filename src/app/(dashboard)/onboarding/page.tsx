@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -8,6 +8,7 @@ import Select from "@/components/ui/select";
 import Textarea from "@/components/ui/textarea";
 import MultiSelect from "@/components/ui/multiselect";
 import Card from "@/components/ui/card";
+import BackButton from "@/components/common/BackButton";
 import AvatarUpload from "@/components/profile/AvatarUpload";
 import ProblemStatementSelector from "@/components/profile/ProblemStatementSelector";
 import { apiFetch } from "@/lib/api-client";
@@ -22,42 +23,40 @@ interface Lookups {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user, profile, loading: sessionLoading, refresh, setProfileState } = useSession();
+  const { user, profile, loading: sessionLoading, refresh } = useSession();
   const [lookups, setLookups] = useState<Lookups>({
-    skills: DEFAULT_SKILLS.map((name, id) => ({ id: id + 1, name })),
-    roles: DEFAULT_ROLES.map((name, id) => ({ id: id + 1, name })),
-    problemStatements: SIH_PROBLEM_STATEMENTS.map((ps) => ({
-      id: ps.id || 0,
-      title: ps.title,
-      description: ps.description,
-      category: ps.category,
-    })),
+    skills: DEFAULT_SKILLS.map((s, idx) => ({ id: idx + 1, name: s })),
+    roles: DEFAULT_ROLES.map((r, idx) => ({ id: idx + 1, name: r })),
+    problemStatements: SIH_PROBLEM_STATEMENTS.map((ps, idx) => ({ id: idx + 1, title: ps.title, description: ps.description, category: ps.category })),
   });
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     fullName: "",
     college: "",
-    branch: "",
-    year: 2,
-    experience: "Intermediate" as "Beginner" | "Intermediate" | "Advanced",
-    availability: "Flexible" as "Full-time" | "Part-time" | "Flexible",
     bio: "",
-    githubUsername: "",
-    phoneNumber: "",
+    branch: "",
+    graduationYear: "",
+    githubUrl: "",
+    linkedinUrl: "",
+    mobileNumber: "",
+    availability: "Immediate",
+    experienceLevel: "Intermediate",
   });
-  const [avatarUrl, setAvatarUrl] = useState("");
   const [skills, setSkills] = useState<string[]>([]);
   const [roles, setRoles] = useState<string[]>([]);
   const [problemStatementIds, setProblemStatementIds] = useState<number[]>([]);
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     apiFetch("/api/lookups")
       .then((data) => {
-        if (data && data.skills && data.roles && data.problemStatements) {
-          setLookups(data);
-        }
+        setLookups({
+          skills: data.skills?.length ? data.skills : DEFAULT_SKILLS.map((s, idx) => ({ id: idx + 1, name: s })),
+          roles: data.roles?.length ? data.roles : DEFAULT_ROLES.map((r, idx) => ({ id: idx + 1, name: r })),
+          problemStatements: data.problemStatements?.length ? data.problemStatements : SIH_PROBLEM_STATEMENTS.map((ps, idx) => ({ id: idx + 1, title: ps.title, description: ps.description, category: ps.category })),
+        });
       })
       .catch(() => {});
   }, []);
@@ -66,36 +65,36 @@ export default function OnboardingPage() {
     if (!sessionLoading && profile) {
       router.replace("/discover");
     }
-  }, [profile, sessionLoading, router]);
+  }, [sessionLoading, profile, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!form.fullName.trim()) return setError("Full name is required");
-    if (!form.college.trim()) return setError("College is required");
-    if (!form.branch.trim()) return setError("Branch is required");
-    if (skills.length === 0) return setError("Select or add at least one skill");
-    if (roles.length === 0) return setError("Select at least one role");
-
     setLoading(true);
     try {
-      const created = await apiFetch("/api/profiles", {
+      await apiFetch("/api/profiles", {
         method: "POST",
         body: JSON.stringify({
-          ...form,
-          avatarUrl: avatarUrl || undefined,
-          githubUsername: form.githubUsername || undefined,
-          phoneNumber: form.phoneNumber || undefined,
+          fullName: form.fullName,
+          college: form.college,
+          bio: form.bio,
+          branch: form.branch,
+          graduationYear: form.graduationYear ? parseInt(form.graduationYear, 10) : null,
+          githubUrl: form.githubUrl,
+          linkedinUrl: form.linkedinUrl,
+          mobileNumber: form.mobileNumber,
+          availability: form.availability,
+          experienceLevel: form.experienceLevel,
+          avatarUrl,
           skills,
           roles,
           problemStatementIds,
         }),
       });
-      setProfileState(created);
       await refresh();
       router.replace("/discover");
     } catch (err: any) {
-      setError(err.message || "Failed to create profile. Please check your inputs.");
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -110,11 +109,17 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl pb-16 pt-4">
-      <h1 className="text-2xl font-bold text-white">Build your SIH Profile</h1>
-      <p className="mt-1 text-sm text-slate-400">
-        This is what teammates will see when they discover you. Add your skills, contact info, and preferred SIH 2026 problem statements to get high-accuracy compatibility scores.
-      </p>
+    <div className="mx-auto max-w-2xl pb-16 pt-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <BackButton href="/" label="Back to Home" />
+      </div>
+
+      <div>
+        <h1 className="text-2xl font-bold text-white">Build your SIH Profile</h1>
+        <p className="mt-1 text-sm text-slate-400">
+          This is what teammates will see when they discover you. Add your skills, contact info, and preferred SIH 2026 problem statements to get high-accuracy compatibility scores.
+        </p>
+      </div>
 
       <Card className="mt-6 p-6">
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -133,81 +138,83 @@ export default function OnboardingPage() {
               required
               value={form.college}
               onChange={(e) => setForm({ ...form, college: e.target.value })}
-              placeholder="e.g. IIT Bombay / BITS Pilani"
+              placeholder="e.g. IIT Delhi"
             />
             <Input
-              label="Branch / Major"
+              label="Mobile / WhatsApp Number (Required)"
+              type="tel"
               required
-              value={form.branch}
-              onChange={(e) => setForm({ ...form, branch: e.target.value })}
-              placeholder="e.g. Computer Science & Engineering"
+              value={form.mobileNumber}
+              onChange={(e) => setForm({ ...form, mobileNumber: e.target.value })}
+              placeholder="e.g. +91 9876543210"
+              helperText="🔒 Not visible publicly. Only shared with teammates after you accept their squad request."
             />
           </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Select
-              label="Year of Study"
-              value={form.year}
-              onChange={(e) => setForm({ ...form, year: Number(e.target.value) })}
-            >
-              {[1, 2, 3, 4, 5].map((y) => (
-                <option key={y} value={y}>
-                  Year {y}
-                </option>
-              ))}
-            </Select>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="Branch"
+              value={form.branch}
+              onChange={(e) => setForm({ ...form, branch: e.target.value })}
+              placeholder="e.g. Computer Science"
+            />
+            <Input
+              label="Graduation Year"
+              type="number"
+              value={form.graduationYear}
+              onChange={(e) => setForm({ ...form, graduationYear: e.target.value })}
+              placeholder="e.g. 2026"
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="GitHub URL"
+              value={form.githubUrl}
+              onChange={(e) => setForm({ ...form, githubUrl: e.target.value })}
+              placeholder="https://github.com/username"
+            />
+            <Input
+              label="LinkedIn URL"
+              value={form.linkedinUrl}
+              onChange={(e) => setForm({ ...form, linkedinUrl: e.target.value })}
+              placeholder="https://linkedin.com/in/username"
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <Select
               label="Experience Level"
-              value={form.experience}
-              onChange={(e) => setForm({ ...form, experience: e.target.value as any })}
-            >
-              <option>Beginner</option>
-              <option>Intermediate</option>
-              <option>Advanced</option>
-            </Select>
+              value={form.experienceLevel}
+              onChange={(e) => setForm({ ...form, experienceLevel: e.target.value })}
+              options={[
+                { value: "Beginner", label: "Beginner (First Hackathon)" },
+                { value: "Intermediate", label: "Intermediate (Built Projects)" },
+                { value: "Advanced", label: "Advanced (Hackathon Winner/Pro)" },
+              ]}
+            />
             <Select
               label="Availability"
               value={form.availability}
-              onChange={(e) => setForm({ ...form, availability: e.target.value as any })}
-            >
-              <option>Full-time</option>
-              <option>Part-time</option>
-              <option>Flexible</option>
-            </Select>
-          </div>
-
-          {/* Contact / Phone with Privacy Notice */}
-          <div className="space-y-1.5">
-            <Input
-              label="Mobile / WhatsApp Number"
-              type="tel"
-              value={form.phoneNumber}
-              onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
-              placeholder="e.g. +91 98765 43210"
+              onChange={(e) => setForm({ ...form, availability: e.target.value })}
+              options={[
+                { value: "Immediate", label: "Immediate (Ready to team up now)" },
+                { value: "Part-time", label: "Part-time (Evenings/Weekends)" },
+                { value: "Exploring", label: "Exploring (Looking around)" },
+              ]}
             />
-            <div className="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-900/60 border border-white/5 rounded-lg px-3 py-1.5">
-              <span>🔒</span>
-              <span>
-                <strong>Private:</strong> Your number is never shown publicly. It is shared only with confirmed teammates when a team request is accepted.
-              </span>
-            </div>
           </div>
 
           <Textarea
-            label="Short bio & hackathon goals"
+            label="Bio / Introduction"
             rows={3}
             value={form.bio}
             onChange={(e) => setForm({ ...form, bio: e.target.value })}
-            placeholder="What are you excited to build for SIH 2026? Mention any previous hackathon experience, strengths, or tech stack…"
-          />
-          <Input
-            label="GitHub username (optional)"
-            value={form.githubUsername}
-            onChange={(e) => setForm({ ...form, githubUsername: e.target.value })}
-            placeholder="e.g. octocat"
+            placeholder="Tell potential teammates what you're great at and what you love building..."
           />
 
           <MultiSelect
-            label="Skills (Select or type custom skills and press Enter)"
+            label="Skills & Technologies"
             options={lookups.skills.map((s) => s.name)}
             selected={skills}
             onChange={setSkills}

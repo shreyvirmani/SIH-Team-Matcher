@@ -6,6 +6,7 @@ import Card from "@/components/ui/card";
 import Badge from "@/components/ui/badge";
 import Button from "@/components/ui/button";
 import Avatar from "@/components/profile/Avatar";
+import BackButton from "@/components/common/BackButton";
 import { apiFetch } from "@/lib/api-client";
 
 export default function SavedProfilesPage() {
@@ -15,7 +16,7 @@ export default function SavedProfilesPage() {
   const load = async () => {
     setLoading(true);
     const res = await apiFetch("/api/saved-profiles");
-    setProfiles(res.profiles);
+    setProfiles(res.profiles || []);
     setLoading(false);
   };
 
@@ -31,9 +32,15 @@ export default function SavedProfilesPage() {
   if (loading) return <p className="text-slate-400">Loading saved profiles…</p>;
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-white">Saved profiles</h1>
-      <p className="mt-1 text-sm text-slate-400">Teammates you bookmarked for later follow-up.</p>
+    <div className="space-y-6 pb-16 pt-2">
+      <div className="flex items-center justify-between">
+        <BackButton href="/discover" label="Back to Discover" />
+      </div>
+
+      <div>
+        <h1 className="text-2xl font-bold text-white">Saved profiles</h1>
+        <p className="mt-1 text-sm text-slate-400">Teammates you bookmarked for later follow-up.</p>
+      </div>
 
       {profiles.length === 0 ? (
         <p className="mt-8 text-sm text-slate-500">

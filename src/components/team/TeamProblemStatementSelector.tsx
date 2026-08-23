@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useMemo } from "react";
 import Badge from "@/components/ui/badge";
@@ -17,7 +17,7 @@ export default function TeamProblemStatementSelector({
   error,
 }: {
   problemStatements: ProblemStatementItem[];
-  selectedId: string | number;
+  selectedId?: string | number | null;
   onChange: (id: string) => void;
   error?: string;
 }) {

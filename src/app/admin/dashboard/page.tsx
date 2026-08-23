@@ -7,6 +7,7 @@ import Badge from "@/components/ui/badge";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import Textarea from "@/components/ui/textarea";
+import BackButton from "@/components/common/BackButton";
 import { apiFetch } from "@/lib/api-client";
 import { useSession } from "@/lib/use-session";
 
@@ -20,34 +21,40 @@ export default function AdminDashboardPage() {
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    if (!sessionLoading && profile && !profile.isAdmin) {
-      router.push("/discover");
+    if (!sessionLoading && (!profile || !profile.isAdmin)) {
+      router.replace("/discover");
     }
-  }, [sessionLoading, profile, router]);
+  }, [profile, sessionLoading, router]);
 
-  const load = async () => {
-    const [s, ps] = await Promise.all([apiFetch("/api/admin/stats"), apiFetch("/api/admin/problem-statements")]);
-    setStats(s);
-    setProblemStatements(ps.problemStatements);
+  const loadData = async () => {
+    try {
+      const [s, ps] = await Promise.all([
+        apiFetch("/api/admin/stats"),
+        apiFetch("/api/admin/problem-statements"),
+      ]);
+      setStats(s.stats);
+      setProblemStatements(ps.problemStatements);
+    } catch (e: any) {
+      setError(e.message);
+    }
   };
 
   useEffect(() => {
-    if (profile?.isAdmin) load();
+    if (profile?.isAdmin) {
+      loadData();
+    }
   }, [profile]);
 
-  const toggleActive = async (id: number, is_active: boolean) => {
-    await apiFetch("/api/admin/problem-statements", { method: "PATCH", body: JSON.stringify({ id, is_active }) });
-    await load();
-  };
-
-  const createPS = async (e: React.FormEvent) => {
+  const createPs = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
     setCreating(true);
     try {
-      await apiFetch("/api/admin/problem-statements", { method: "POST", body: JSON.stringify(form) });
+      await apiFetch("/api/admin/problem-statements", {
+        method: "POST",
+        body: JSON.stringify(form),
+      });
       setForm({ title: "", description: "", category: "" });
-      await load();
+      await loadData();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -55,7 +62,7 @@ export default function AdminDashboardPage() {
     }
   };
 
-  if (sessionLoading || !profile?.isAdmin || !stats) {
+  if (sessionLoading || !stats) {
     return <div className="mx-auto max-w-6xl px-4 py-16 text-slate-400">Loading admin dashboard…</div>;
   }
 
@@ -69,8 +76,17 @@ export default function AdminDashboardPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="text-2xl font-bold text-white">Admin dashboard</h1>
+    <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <BackButton href="/discover" label="Back to Discover" />
+          <div>
+            <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
+            <p className="text-xs text-slate-400">Live platform analytics and SIH problem statement manager.</p>
+          </div>
+        </div>
+        <Badge color="amber">Super Admin</Badge>
+      </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {statCards.map((s) => (
@@ -88,14 +104,10 @@ export default function AdminDashboardPage() {
             {problemStatements.map((ps) => (
               <Card key={ps.id} className="flex items-center justify-between p-3">
                 <div>
-                  <p className="text-sm font-medium text-white">{ps.title}</p>
-                  <p className="text-xs text-slate-500">{ps.category}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge color={ps.is_active ? "green" : "slate"}>{ps.is_active ? "Active" : "Inactive"}</Badge>
-                  <Button variant="outline" onClick={() => toggleActive(ps.id, !ps.is_active)}>
-                    {ps.is_active ? "Deactivate" : "Activate"}
-                  </Button>
+                  <p className="text-sm font-semibold text-white">{ps.title}</p>
+                  <p className="text-xs text-slate-400">
+                    Category: {ps.category || "General"} • {ps._count?.profiles || 0} students
+                  </p>
                 </div>
               </Card>
             ))}
@@ -105,31 +117,30 @@ export default function AdminDashboardPage() {
         <div>
           <h2 className="text-lg font-semibold text-white">Add problem statement</h2>
           <Card className="mt-3 p-5">
-            <form onSubmit={createPS} className="flex flex-col gap-4">
-              <Input label="Title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-              <Input label="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
+            <form onSubmit={createPs} className="flex flex-col gap-3">
+              <Input
+                label="Title"
+                required
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+              />
+              <Input
+                label="Category"
+                placeholder="e.g. Smart Automation, Healthcare"
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+              />
               <Textarea
                 label="Description"
-                rows={3}
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
-              {error && <p className="text-sm text-red-400">{error}</p>}
+              {error && <p className="text-xs text-red-400">{error}</p>}
               <Button type="submit" loading={creating}>
-                Add
+                Save
               </Button>
             </form>
           </Card>
-
-          <h2 className="mt-8 text-lg font-semibold text-white">Recent signups</h2>
-          <div className="mt-3 flex flex-col gap-2">
-            {stats.recentUsers.map((u: any) => (
-              <Card key={u.id} className="flex items-center justify-between p-3 text-sm">
-                <span className="font-medium text-white">{u.fullName}</span>
-                <span className="text-slate-500">{u.college}</span>
-              </Card>
-            ))}
-          </div>
         </div>
       </div>
     </div>

@@ -2,24 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Card from "@/components/ui/card";
-import Badge from "@/components/ui/badge";
 import Button from "@/components/ui/button";
+import BackButton from "@/components/common/BackButton";
 import { apiFetch } from "@/lib/api-client";
-import { useSession } from "@/lib/use-session";
-import { useRealtimeNotifications } from "@/lib/use-realtime-notifications";
-
-const TYPE_LABEL: Record<string, string> = {
-  team_request: "New request",
-  team_accepted: "Accepted",
-  team_rejected: "Declined",
-};
 
 export default function NotificationsPage() {
-  const { user } = useSession();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
+    setLoading(true);
     const res = await apiFetch("/api/notifications");
     setNotifications(res.notifications);
     setLoading(false);
@@ -29,11 +21,8 @@ export default function NotificationsPage() {
     load();
   }, []);
 
-  // Live push updates via Supabase Realtime instead of polling.
-  useRealtimeNotifications(user?.id, load);
-
   const markAllRead = async () => {
-    await apiFetch("/api/notifications", { method: "PATCH", body: JSON.stringify({ mark_all_read: true }) });
+    await apiFetch("/api/notifications", { method: "PATCH", body: JSON.stringify({ all: true }) });
     await load();
   };
 
@@ -45,7 +34,11 @@ export default function NotificationsPage() {
   if (loading) return <p className="text-slate-400">Loading notifications…</p>;
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-2xl space-y-6 pb-16 pt-2">
+      <div className="flex items-center justify-between">
+        <BackButton href="/discover" label="Back to Discover" />
+      </div>
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">Notifications</h1>
         {notifications.some((n) => !n.is_read) && (
@@ -56,23 +49,24 @@ export default function NotificationsPage() {
       </div>
 
       {notifications.length === 0 ? (
-        <p className="mt-6 text-sm text-slate-500">You&apos;re all caught up.</p>
+        <p className="mt-8 text-sm text-slate-500">No notifications yet.</p>
       ) : (
-        <div className="mt-6 flex flex-col gap-3">
+        <div className="mt-4 flex flex-col gap-3">
           {notifications.map((n) => (
             <Card
-              key={n.notification_id}
-              className={`flex items-start justify-between gap-3 p-4 ${n.is_read ? "opacity-60" : ""}`}
+              key={n.id}
+              className={`flex items-center justify-between p-4 ${
+                n.is_read ? "opacity-60" : "border-indigo-500/40"
+              }`}
             >
-              <div>
-                <div className="flex items-center gap-2">
-                  <Badge color={n.is_read ? "slate" : "indigo"}>{TYPE_LABEL[n.type] || n.type}</Badge>
-                  <span className="text-xs text-slate-500">{new Date(n.created_at).toLocaleString()}</span>
-                </div>
-                <p className="mt-1 text-sm text-slate-300">{n.message}</p>
+              <div className="flex-1">
+                <p className="text-sm text-white">{n.message}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {new Date(n.created_at).toLocaleString()}
+                </p>
               </div>
               {!n.is_read && (
-                <Button variant="ghost" onClick={() => markRead(n.notification_id)}>
+                <Button variant="ghost" onClick={() => markRead(n.id)}>
                   Mark read
                 </Button>
               )}

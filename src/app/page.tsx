@@ -68,7 +68,7 @@ export default function Home() {
         </p>
         <div className="mt-9 flex justify-center gap-3">
           <Link href="/signup">
-            <Button className="px-6 py-3 text-base">Get started free</Button>
+            <Button className="px-6 py-3 text-base">Get started</Button>
           </Link>
           <Link href="/login">
             <Button variant="outline" className="px-6 py-3 text-base">
