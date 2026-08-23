@@ -2,63 +2,70 @@
 
 import TiltCard from "@/components/ui/tilt-card";
 import { StaggerContainer, StaggerItem } from "@/components/common/ScrollReveal";
+import { DocumentIcon, BrainIcon, UsersIcon, LockIcon } from "@/components/common/Icons";
 
 const STATS = [
   {
-    icon: "📜",
+    icon: DocumentIcon,
     value: "226",
-    label: "Official SIH Problem Statements",
+    label: "Official Problem Statements",
     highlight: "All 14 Ministries & Themes",
-    color: "from-amber-400 to-orange-400",
+    iconColor: "text-amber-400 bg-amber-400/10 border-amber-400/20",
   },
   {
-    icon: "🧠",
+    icon: BrainIcon,
     value: "0-100%",
-    label: "AI Compatibility Matching",
-    highlight: "With Plain-English Rationale",
-    color: "from-indigo-400 to-cyan-400",
+    label: "AI Compatibility Scoring",
+    highlight: "With Clear Rationales",
+    iconColor: "text-indigo-400 bg-indigo-400/10 border-indigo-400/20",
   },
   {
-    icon: "🛡️",
-    value: "6 Roles",
+    icon: UsersIcon,
+    value: "6 Members",
     label: "Balanced Squad Composition",
-    highlight: "Instantly Spot Missing Gaps",
-    color: "from-fuchsia-400 to-pink-400",
+    highlight: "Spot Missing Skills & Roles",
+    iconColor: "text-sky-400 bg-sky-400/10 border-sky-400/20",
   },
   {
-    icon: "🔒",
-    value: "100%",
-    label: "Verified Contact Privacy",
+    icon: LockIcon,
+    value: "100% Private",
+    label: "Verified Contact Sharing",
     highlight: "Unlocked Only on Acceptance",
-    color: "from-emerald-400 to-teal-400",
+    iconColor: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
   },
 ];
 
 export default function Home3DStats() {
   return (
-    <StaggerContainer staggerDelay={0.12} className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-      {STATS.map((s) => (
-        <StaggerItem key={s.label} variant="3d-rise">
-          <TiltCard
-            maxTilt={12}
-            className="p-6 border border-white/10 bg-slate-900/60 shadow-[0_15px_35px_-10px_rgba(0,0,0,0.5)] hover:border-indigo-500/40 transition-all duration-300 h-full"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-2xl">{s.icon}</span>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5">
-                SIH 2026
-              </span>
-            </div>
-            <div className="mt-4">
-              <span className={`text-3xl font-black tracking-tight bg-gradient-to-r ${s.color} bg-clip-text text-transparent`}>
-                {s.value}
-              </span>
-              <h4 className="mt-1 text-sm font-bold text-white leading-snug">{s.label}</h4>
-              <p className="mt-1 text-xs text-slate-400">{s.highlight}</p>
-            </div>
-          </TiltCard>
-        </StaggerItem>
-      ))}
+    <StaggerContainer staggerDelay={0.08} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {STATS.map((s) => {
+        const Icon = s.icon;
+        return (
+          <StaggerItem key={s.label} variant="fade-up">
+            <TiltCard
+              maxTilt={8}
+              glow={false}
+              className="p-5 border border-slate-800 bg-slate-900/80 shadow-sm hover:border-slate-700 transition-all h-full"
+            >
+              <div className="flex items-center justify-between">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-lg border ${s.iconColor}`}>
+                  <Icon className="h-5 w-5" />
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 rounded border border-slate-800 bg-slate-800/50 px-2 py-0.5">
+                  SIH 2026
+                </span>
+              </div>
+              <div className="mt-4">
+                <span className="text-2xl font-bold tracking-tight text-white">
+                  {s.value}
+                </span>
+                <h4 className="mt-1 text-sm font-semibold text-slate-200">{s.label}</h4>
+                <p className="mt-1 text-xs text-slate-400">{s.highlight}</p>
+              </div>
+            </TiltCard>
+          </StaggerItem>
+        );
+      })}
     </StaggerContainer>
   );
 }

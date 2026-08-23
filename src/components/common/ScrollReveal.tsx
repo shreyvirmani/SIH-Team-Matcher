@@ -15,35 +15,35 @@ export default function ScrollReveal({
   children,
   variant = "fade-up",
   delay = 0,
-  duration = 0.6,
+  duration = 0.5,
   className = "",
 }: ScrollRevealProps) {
   const getVariants = (): Variants => {
     switch (variant) {
       case "fade-down":
         return {
-          hidden: { opacity: 0, y: -40 },
+          hidden: { opacity: 0, y: -30 },
           visible: { opacity: 1, y: 0 },
         };
       case "slide-left":
         return {
-          hidden: { opacity: 0, x: -50 },
+          hidden: { opacity: 0, x: -40 },
           visible: { opacity: 1, x: 0 },
         };
       case "slide-right":
         return {
-          hidden: { opacity: 0, x: 50 },
+          hidden: { opacity: 0, x: 40 },
           visible: { opacity: 1, x: 0 },
         };
       case "scale-up":
         return {
-          hidden: { opacity: 0, scale: 0.88, y: 30 },
+          hidden: { opacity: 0, scale: 0.9, y: 20 },
           visible: { opacity: 1, scale: 1, y: 0 },
         };
       case "3d-rise":
         return {
-          hidden: { opacity: 0, rotateX: 25, y: 60, scale: 0.95 },
-          visible: { opacity: 1, rotateX: 0, y: 0, scale: 1 },
+          hidden: { opacity: 0, y: 30, scale: 0.95 },
+          visible: { opacity: 1, y: 0, scale: 1 },
         };
       case "fade-in":
         return {
@@ -53,7 +53,7 @@ export default function ScrollReveal({
       case "fade-up":
       default:
         return {
-          hidden: { opacity: 0, y: 40 },
+          hidden: { opacity: 0, y: 30 },
           visible: { opacity: 1, y: 0 },
         };
     }
@@ -63,7 +63,7 @@ export default function ScrollReveal({
     <motion.div
       initial="hidden"
       whileInView="visible"
-      viewport={{ once: true, margin: "-60px" }}
+      viewport={{ once: true, margin: "-40px" }}
       transition={{
         duration,
         delay,
@@ -79,7 +79,7 @@ export default function ScrollReveal({
 
 export function StaggerContainer({
   children,
-  staggerDelay = 0.1,
+  staggerDelay = 0.08,
   className = "",
 }: {
   children: ReactNode;
@@ -90,7 +90,7 @@ export function StaggerContainer({
     <motion.div
       initial="hidden"
       whileInView="visible"
-      viewport={{ once: true, margin: "-60px" }}
+      viewport={{ once: true, margin: "-40px" }}
       variants={{
         hidden: {},
         visible: {
@@ -119,19 +119,19 @@ export function StaggerItem({
     switch (variant) {
       case "scale-up":
         return {
-          hidden: { opacity: 0, scale: 0.88, y: 30 },
-          visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
+          hidden: { opacity: 0, scale: 0.9, y: 20 },
+          visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
         };
       case "3d-rise":
         return {
-          hidden: { opacity: 0, rotateX: 20, y: 45, scale: 0.92 },
-          visible: { opacity: 1, rotateX: 0, y: 0, scale: 1, transition: { duration: 0.6, ease: "easeOut" } },
+          hidden: { opacity: 0, y: 30, scale: 0.95 },
+          visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease: "easeOut" } },
         };
       case "fade-up":
       default:
         return {
-          hidden: { opacity: 0, y: 35 },
-          visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
+          hidden: { opacity: 0, y: 25 },
+          visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
         };
     }
   };
