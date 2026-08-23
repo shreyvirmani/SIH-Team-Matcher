@@ -1,5 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { withApiError } from "@/lib/api-helpers";
@@ -7,82 +6,167 @@ import { getFullProfile, toMatchProfile, upsertLookupIds } from "@/lib/profiles"
 import { rankCompatibility } from "@/lib/matching";
 import { lookupGithubUser } from "@/lib/github";
 
-const profileSchema = z.object({
-  fullName: z.string().min(2).max(120),
-  college: z.string().min(2).max(160),
-  branch: z.string().min(2).max(120),
-  year: z.number().int().min(1).max(6),
-  experience: z.enum(["Beginner", "Intermediate", "Advanced"]),
-  availability: z.enum(["Full-time", "Part-time", "Flexible"]),
-  bio: z.string().max(1000).optional().default(""),
-  avatarUrl: z.string().url().optional(),
-  githubUsername: z.string().max(60).optional(),
-  phoneNumber: z.string().max(30).optional().nullable(),
-  skills: z.array(z.string()).min(1, "Select at least one skill"),
-  roles: z.array(z.string()).min(1, "Select at least one role"),
-  problemStatementIds: z.array(z.number()).default([]),
-  isLookingForTeam: z.boolean().optional().default(true),
-});
+function cleanGithubUsername(val?: string | null): string | null {
+  if (!val) return null;
+  const s = val.trim();
+  if (!s) return null;
+  const match = s.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  return s.replace(/^@/, "");
+}
+
+function cleanAvatarUrl(val?: string | null): string | null {
+  if (!val) return null;
+  const s = val.trim();
+  if (!s) return null;
+  try {
+    new URL(s);
+    return s;
+  } catch {
+    return null;
+  }
+}
+
+function parseYear(val: any): number {
+  if (!val) return 3;
+  const n = parseInt(String(val), 10);
+  if (isNaN(n)) return 3;
+  if (n >= 1 && n <= 6) return n;
+  if (n >= 2020 && n <= 2035) {
+    const currentYear = new Date().getFullYear();
+    const diff = n - currentYear;
+    const computed = 4 - diff;
+    return Math.min(6, Math.max(1, computed));
+  }
+  return 3;
+}
+
+function parseAvailability(val: any): "Full-time" | "Part-time" | "Flexible" {
+  if (!val) return "Full-time";
+  const s = String(val).toLowerCase();
+  if (s.includes("part")) return "Part-time";
+  if (s.includes("flex") || s.includes("explor")) return "Flexible";
+  return "Full-time";
+}
+
+function parseExperience(val: any): "Beginner" | "Intermediate" | "Advanced" {
+  if (!val) return "Intermediate";
+  const s = String(val).toLowerCase();
+  if (s.includes("beg")) return "Beginner";
+  if (s.includes("adv")) return "Advanced";
+  return "Intermediate";
+}
 
 export async function POST(req: NextRequest) {
   return withApiError(async () => {
     const session = await requireUser();
     const supabase = createServerSupabase();
 
-    const json = await req.json().catch(() => null);
-    const parsed = profileSchema.safeParse(json);
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid input" }, { status: 400 });
-    }
-    const data = parsed.data;
+    const json = await req.json().catch(() => ({}));
+    const fullName = String(json.fullName || json.full_name || json.name || "").trim();
+    const college = String(json.college || "").trim();
+    const branch = String(json.branch || "").trim();
+    const mobileNumber = String(json.mobileNumber || json.phoneNumber || json.phone_number || "").trim();
+    const bio = String(json.bio || "").trim();
 
-    const { data: existing } = await supabase.from("profiles").select("id").eq("id", session.id).maybeSingle();
-    if (existing) {
-      return NextResponse.json({ error: "Profile already exists. Use PUT to update." }, { status: 409 });
+    if (!fullName || fullName.length < 2) {
+      return NextResponse.json({ error: "Please enter your full name (minimum 2 characters)." }, { status: 400 });
     }
+    if (!college || college.length < 2) {
+      return NextResponse.json({ error: "Please enter your college / university name." }, { status: 400 });
+    }
+    if (!mobileNumber || mobileNumber.length < 6) {
+      return NextResponse.json({ error: "Please enter a valid mobile / WhatsApp number." }, { status: 400 });
+    }
+
+    const rawSkills = Array.isArray(json.skills) ? json.skills : [];
+    const skills = rawSkills.map((s: any) => String(s).trim()).filter(Boolean);
+    if (skills.length === 0) {
+      return NextResponse.json({ error: "Please select or add at least one skill." }, { status: 400 });
+    }
+
+    const rawRoles = Array.isArray(json.roles) ? json.roles : Array.isArray(json.preferredRoles) ? json.preferredRoles : [];
+    const roles = rawRoles.map((r: any) => String(r).trim()).filter(Boolean);
+    if (roles.length === 0) {
+      return NextResponse.json({ error: "Please select or add at least one preferred role." }, { status: 400 });
+    }
+
+    const rawPS = Array.isArray(json.problemStatementIds)
+      ? json.problemStatementIds
+      : Array.isArray(json.problem_statement_ids)
+      ? json.problem_statement_ids
+      : [];
+    const problemStatementIds = rawPS.map((id: any) => Number(id)).filter((id: number) => !isNaN(id) && id > 0);
+
+    const year = parseYear(json.year || json.graduationYear || json.graduation_year);
+    const experience = parseExperience(json.experience || json.experienceLevel || json.experience_level);
+    const availability = parseAvailability(json.availability);
+    const avatarUrl = cleanAvatarUrl(json.avatarUrl || json.avatar_url);
+    const githubUsername = cleanGithubUsername(json.githubUsername || json.github_username || json.githubUrl || json.github_url);
 
     let githubPublicRepos: number | null = null;
-    if (data.githubUsername) {
-      const gh = await lookupGithubUser(data.githubUsername);
+    if (githubUsername) {
+      const gh = await lookupGithubUser(githubUsername);
       githubPublicRepos = gh.publicRepos;
     }
 
-    const { error: insertError } = await supabase.from("profiles").insert({
-      id: session.id,
-      full_name: data.fullName,
-      college: data.college,
-      branch: data.branch,
-      year: data.year,
-      experience: data.experience,
-      availability: data.availability,
-      bio: data.bio,
-      avatar_url: data.avatarUrl,
-      github_username: data.githubUsername || null,
-      github_public_repos: githubPublicRepos,
-      phone_number: data.phoneNumber || null,
-      is_looking_for_team: data.isLookingForTeam,
-    });
-    if (insertError) return NextResponse.json({ error: insertError.message }, { status: 400 });
+    const { data: existing } = await supabase.from("profiles").select("id").eq("id", session.id).maybeSingle();
 
-    const skillIds = await upsertLookupIds(supabase, "skills", data.skills);
+    const profileData = {
+      id: session.id,
+      full_name: fullName,
+      college,
+      branch: branch || "Engineering",
+      year,
+      experience,
+      availability,
+      bio,
+      avatar_url: avatarUrl,
+      github_username: githubUsername,
+      github_public_repos: githubPublicRepos,
+      phone_number: mobileNumber,
+      is_looking_for_team: json.isLookingForTeam !== false,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (existing) {
+      const { error: updateErr } = await supabase.from("profiles").update(profileData).eq("id", session.id);
+      if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 400 });
+    } else {
+      const { error: insertErr } = await supabase.from("profiles").insert(profileData);
+      if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 400 });
+    }
+
+    // Upsert Skills
+    await supabase.from("user_skills").delete().eq("profile_id", session.id);
+    const skillIds = await upsertLookupIds(supabase, "skills", skills);
     if (skillIds.length > 0) {
       await supabase.from("user_skills").insert(skillIds.map((skill_id) => ({ profile_id: session.id, skill_id })));
     }
 
-    const roleIds = await upsertLookupIds(supabase, "roles", data.roles);
+    // Upsert Roles
+    await supabase.from("user_roles").delete().eq("profile_id", session.id);
+    const roleIds = await upsertLookupIds(supabase, "roles", roles);
     if (roleIds.length > 0) {
       await supabase.from("user_roles").insert(roleIds.map((role_id) => ({ profile_id: session.id, role_id })));
     }
 
-    if (data.problemStatementIds.length > 0) {
+    // Problem Statements
+    await supabase.from("profile_problem_statements").delete().eq("profile_id", session.id);
+    if (problemStatementIds.length > 0) {
       await supabase
         .from("profile_problem_statements")
-        .insert(data.problemStatementIds.map((problem_statement_id) => ({ profile_id: session.id, problem_statement_id })));
+        .insert(problemStatementIds.map((problem_statement_id: number) => ({ profile_id: session.id, problem_statement_id })));
     }
 
     const profile = await getFullProfile(supabase, session.id);
-    return NextResponse.json(profile, { status: 201 });
+    return NextResponse.json(profile, { status: existing ? 200 : 201 });
   });
+}
+
+export async function PUT(req: NextRequest) {
+  // Support PUT /api/profiles directly
+  return POST(req);
 }
 
 export async function GET(req: NextRequest) {
@@ -142,7 +226,6 @@ export async function GET(req: NextRequest) {
       candidateIds = candidateIds.filter((id) => matchIds.has(id));
     }
 
-    // AI-powered compatibility scoring against the current user's profile.
     const { data: currentProfileExists } = await supabase
       .from("profiles")
       .select("id")
@@ -186,7 +269,6 @@ export async function GET(req: NextRequest) {
           problem_statement_names: full.problemStatements.map((p) => p.title),
           compatibility_score: entry.score,
           compatibility_rationale: entry.rationale,
-          // Notice: phone_number is deliberately NOT included here (privacy protection)
         };
       })
     );

@@ -26,7 +26,7 @@ export default function MyProfilePage() {
     githubUrl: "",
     linkedinUrl: "",
     mobileNumber: "",
-    availability: "Immediate",
+    availability: "Full-time",
     experienceLevel: "Intermediate",
     preferredRoles: [] as string[],
     skills: [] as string[],
@@ -65,16 +65,16 @@ export default function MyProfilePage() {
         bio: profile.bio || "",
         branch: profile.branch || "",
         graduationYear: profile.graduationYear ? String(profile.graduationYear) : "",
-        githubUrl: profile.githubUrl || "",
+        githubUrl: profile.githubUsername ? `https://github.com/${profile.githubUsername}` : profile.githubUrl || "",
         linkedinUrl: profile.linkedinUrl || "",
-        mobileNumber: profile.mobileNumber || "",
-        availability: profile.availability || "Immediate",
-        experienceLevel: profile.experienceLevel || "Intermediate",
+        mobileNumber: profile.phoneNumber || profile.mobileNumber || "",
+        availability: profile.availability || "Full-time",
+        experienceLevel: profile.experience || profile.experienceLevel || "Intermediate",
         preferredRoles: profile.roles || [],
         skills: profile.skills || [],
         problemStatementIds: profile.problemStatements?.map((ps: any) => ps.id) || [],
       });
-      setAvatarUrl(profile.avatarUrl);
+      setAvatarUrl(profile.avatarUrl || null);
     }
   }, [profile]);
 
@@ -83,18 +83,44 @@ export default function MyProfilePage() {
     setSaving(true);
     setStatusMessage(null);
 
+    if (!form.fullName.trim()) {
+      setStatusMessage({ type: "error", text: "Please enter your Full Name." });
+      setSaving(false);
+      return;
+    }
+    if (!form.college.trim()) {
+      setStatusMessage({ type: "error", text: "Please enter your College / University." });
+      setSaving(false);
+      return;
+    }
+    if (!form.mobileNumber.trim()) {
+      setStatusMessage({ type: "error", text: "Please enter your Mobile / WhatsApp Number." });
+      setSaving(false);
+      return;
+    }
+    if (form.skills.length === 0) {
+      setStatusMessage({ type: "error", text: "Please select or add at least one Skill / Technology." });
+      setSaving(false);
+      return;
+    }
+    if (form.preferredRoles.length === 0) {
+      setStatusMessage({ type: "error", text: "Please select or add at least one Preferred Role." });
+      setSaving(false);
+      return;
+    }
+
     try {
       await apiFetch("/api/profiles", {
         method: "PUT",
         body: JSON.stringify({
-          fullName: form.fullName,
-          college: form.college,
-          bio: form.bio,
-          branch: form.branch,
+          fullName: form.fullName.trim(),
+          college: form.college.trim(),
+          bio: form.bio.trim(),
+          branch: form.branch.trim() || "Engineering",
           graduationYear: form.graduationYear ? parseInt(form.graduationYear, 10) : null,
-          githubUrl: form.githubUrl,
-          linkedinUrl: form.linkedinUrl,
-          mobileNumber: form.mobileNumber,
+          githubUrl: form.githubUrl.trim(),
+          linkedinUrl: form.linkedinUrl.trim(),
+          mobileNumber: form.mobileNumber.trim(),
           availability: form.availability,
           experienceLevel: form.experienceLevel,
           avatarUrl,
@@ -146,7 +172,7 @@ export default function MyProfilePage() {
           <div>
             <h1 className="text-2xl font-bold text-white">Edit Profile</h1>
             <p className="mt-1 text-sm text-slate-400">
-              Keep your skills, availability, and selected SIH 2026 problem statements up to date.
+              Fields marked with (<span className="text-amber-400 font-bold">*</span>) are mandatory. Keep your skills and SIH 2026 problem statements up to date.
             </p>
           </div>
         </div>
@@ -183,14 +209,14 @@ export default function MyProfilePage() {
             />
             <div className="flex-1 space-y-4">
               <Input
-                label="Full Name"
+                label="Full Name *"
                 required
                 value={form.fullName}
                 onChange={(e) => setForm({ ...form, fullName: e.target.value })}
                 placeholder="e.g. Alex Morgan"
               />
               <Input
-                label="College / University"
+                label="College / University *"
                 required
                 value={form.college}
                 onChange={(e) => setForm({ ...form, college: e.target.value })}
@@ -201,23 +227,23 @@ export default function MyProfilePage() {
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <Input
-              label="Branch / Major"
+              label="Branch / Major (Optional)"
               value={form.branch}
               onChange={(e) => setForm({ ...form, branch: e.target.value })}
-              placeholder="e.g. Computer Science"
+              placeholder="e.g. Computer Science, AI, ECE"
             />
             <Input
-              label="Graduation Year"
+              label="Graduation Year (Optional)"
               type="number"
               value={form.graduationYear}
               onChange={(e) => setForm({ ...form, graduationYear: e.target.value })}
-              placeholder="e.g. 2026"
+              placeholder="e.g. 2026, 2027"
             />
           </div>
 
           <div className="mt-4">
             <Textarea
-              label="Bio & Introduction"
+              label="Bio & Introduction (Optional)"
               rows={3}
               value={form.bio}
               onChange={(e) => setForm({ ...form, bio: e.target.value })}
@@ -231,26 +257,28 @@ export default function MyProfilePage() {
           <h2 className="text-base font-semibold text-white">Contact & Socials</h2>
           <div className="mt-4 space-y-4">
             <Input
-              label="Mobile / WhatsApp Number (Locked to Teammates)"
+              label="Mobile / WhatsApp Number *"
               type="tel"
               required
               value={form.mobileNumber}
               onChange={(e) => setForm({ ...form, mobileNumber: e.target.value })}
               placeholder="e.g. +91 9876543210"
-              helperText="🔒 Kept 100% private. Only shared with teammates once a squad invitation is accepted."
+              helperText="🔒 Kept strictly private. Only revealed to confirmed teammates once a squad request is accepted."
             />
             <div className="grid gap-4 sm:grid-cols-2">
               <Input
-                label="GitHub Profile URL"
+                label="GitHub Profile URL / Username (Optional)"
                 value={form.githubUrl}
                 onChange={(e) => setForm({ ...form, githubUrl: e.target.value })}
-                placeholder="https://github.com/username"
+                placeholder="https://github.com/username or username"
+                helperText="Optional: Displays verified public repositories count badge"
               />
               <Input
-                label="LinkedIn Profile URL"
+                label="LinkedIn Profile URL (Optional)"
                 value={form.linkedinUrl}
                 onChange={(e) => setForm({ ...form, linkedinUrl: e.target.value })}
                 placeholder="https://linkedin.com/in/username"
+                helperText="Optional: Lets teammates connect with you on LinkedIn"
               />
             </div>
           </div>
@@ -262,7 +290,7 @@ export default function MyProfilePage() {
           <div className="mt-4 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <Select
-                label="Experience Level"
+                label="Experience Level *"
                 value={form.experienceLevel}
                 onChange={(e) => setForm({ ...form, experienceLevel: e.target.value })}
                 options={[
@@ -272,42 +300,50 @@ export default function MyProfilePage() {
                 ]}
               />
               <Select
-                label="Availability"
+                label="Availability *"
                 value={form.availability}
                 onChange={(e) => setForm({ ...form, availability: e.target.value })}
                 options={[
-                  { value: "Immediate", label: "Immediate (Ready to team up now)" },
-                  { value: "Part-time", label: "Part-time (Evenings/Weekends)" },
-                  { value: "Exploring", label: "Exploring (Looking around)" },
+                  { value: "Full-time", label: "Full-time (Ready to team up actively)" },
+                  { value: "Part-time", label: "Part-time (Evenings / Weekends)" },
+                  { value: "Flexible", label: "Flexible (Exploring & Open)" },
                 ]}
               />
             </div>
 
-            <MultiSelect
-              label="Skills & Tech Stack"
-              options={lookups.skills.map((s) => s.name)}
-              selected={form.skills}
-              onChange={(skills) => setForm({ ...form, skills })}
-              allowCustom={true}
-              placeholder="Search or add skills (e.g. Next.js, FastAPI, OpenCV)..."
-            />
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                Skills & Tech Stack *
+              </label>
+              <MultiSelect
+                options={lookups.skills.map((s) => s.name)}
+                selected={form.skills}
+                onChange={(skills) => setForm({ ...form, skills })}
+                allowCustom={true}
+                placeholder="Search or add skills (e.g. Next.js, FastAPI, OpenCV)..."
+              />
+            </div>
 
-            <MultiSelect
-              label="Preferred Team Roles"
-              options={lookups.roles.map((r) => r.name)}
-              selected={form.preferredRoles}
-              onChange={(roles) => setForm({ ...form, preferredRoles: roles })}
-              allowCustom={true}
-              placeholder="Search or add roles (e.g. Fullstack Developer, ML Engineer)..."
-            />
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                Preferred Team Roles *
+              </label>
+              <MultiSelect
+                options={lookups.roles.map((r) => r.name)}
+                selected={form.preferredRoles}
+                onChange={(roles) => setForm({ ...form, preferredRoles: roles })}
+                allowCustom={true}
+                placeholder="Search or add roles (e.g. Fullstack Developer, ML Engineer)..."
+              />
+            </div>
           </div>
         </Card>
 
         {/* SIH 2026 Problem Statements */}
         <Card className="p-6">
-          <h2 className="text-base font-semibold text-white">SIH 2026 Problem Statement Preferences</h2>
+          <h2 className="text-base font-semibold text-white">SIH 2026 Problem Statement Preferences (Optional)</h2>
           <p className="mt-1 text-xs text-slate-400">
-            Select the SIH problem statements you are aiming to solve. Match scores prioritize teammates who share your problem statement focus.
+            Select any of the 226 official SIH problem statements you are targeting. Match scores prioritize teammates who share your focus.
           </p>
           <div className="mt-4">
             <ProblemStatementSelector

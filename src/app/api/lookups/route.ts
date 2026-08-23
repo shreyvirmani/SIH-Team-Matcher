@@ -13,13 +13,12 @@ export async function GET() {
         .from("problem_statements")
         .select("id, title, description, category")
         .eq("is_active", true)
-        .order("title"),
+        .order("id"),
       supabase.from("profiles").select("college").neq("college", "N/A"),
     ]);
 
-    const colleges = [...new Set((collegeRows || []).map((r: any) => r.college))].sort();
+    const colleges = [...new Set((collegeRows || []).map((r: any) => r.college))].filter(Boolean).sort();
 
-    // Fallbacks if tables are freshly created and haven't run npm run seed yet
     const resolvedSkills = (skills && skills.length > 0)
       ? skills
       : SIH_DEFAULT_SKILLS.map((name, i) => ({ id: i + 1, name }));
@@ -28,7 +27,8 @@ export async function GET() {
       ? roles
       : SIH_DEFAULT_ROLES.map((name, i) => ({ id: i + 1, name }));
 
-    const resolvedProblemStatements = (problemStatements && problemStatements.length > 0)
+    // If database has 226 problem statements, use those; otherwise use the built-in 226 SIH catalog
+    const resolvedProblemStatements = (problemStatements && problemStatements.length >= 226)
       ? problemStatements
       : SIH_PROBLEM_STATEMENTS.map((ps, i) => ({
           id: ps.id || i + 1,

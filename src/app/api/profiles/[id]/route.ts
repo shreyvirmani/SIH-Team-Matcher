@@ -1,11 +1,61 @@
-﻿import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { requireUser, getSessionUser } from "@/lib/auth";
 import { withApiError } from "@/lib/api-helpers";
 import { getFullProfile, toMatchProfile, upsertLookupIds } from "@/lib/profiles";
 import { scoreCompatibility } from "@/lib/matching";
 import { lookupGithubUser } from "@/lib/github";
+
+function cleanGithubUsername(val?: string | null): string | null {
+  if (!val) return null;
+  const s = val.trim();
+  if (!s) return null;
+  const match = s.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  return s.replace(/^@/, "");
+}
+
+function cleanAvatarUrl(val?: string | null): string | null {
+  if (!val) return null;
+  const s = val.trim();
+  if (!s) return null;
+  try {
+    new URL(s);
+    return s;
+  } catch {
+    return null;
+  }
+}
+
+function parseYear(val: any): number {
+  if (!val) return 3;
+  const n = parseInt(String(val), 10);
+  if (isNaN(n)) return 3;
+  if (n >= 1 && n <= 6) return n;
+  if (n >= 2020 && n <= 2035) {
+    const currentYear = new Date().getFullYear();
+    const diff = n - currentYear;
+    const computed = 4 - diff;
+    return Math.min(6, Math.max(1, computed));
+  }
+  return 3;
+}
+
+function parseAvailability(val: any): "Full-time" | "Part-time" | "Flexible" {
+  if (!val) return "Full-time";
+  const s = String(val).toLowerCase();
+  if (s.includes("part")) return "Part-time";
+  if (s.includes("flex") || s.includes("explor")) return "Flexible";
+  return "Full-time";
+}
+
+function parseExperience(val: any): "Beginner" | "Intermediate" | "Advanced" {
+  if (!val) return "Intermediate";
+  const s = String(val).toLowerCase();
+  if (s.includes("beg")) return "Beginner";
+  if (s.includes("adv")) return "Advanced";
+  return "Intermediate";
+}
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   return withApiError(async () => {
@@ -52,6 +102,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       profile_id: full.id,
       user_id: full.id,
       name: full.fullName,
+      fullName: full.fullName,
       college: full.college,
       branch: full.branch,
       year: full.year,
@@ -59,35 +110,22 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       availability: full.availability,
       bio: full.bio,
       avatar_url: full.avatarUrl,
+      avatarUrl: full.avatarUrl,
       github_username: full.githubUsername,
+      githubUsername: full.githubUsername,
       github_public_repos: full.githubPublicRepos,
       phone_number: areTeammates ? full.phoneNumber : undefined,
+      mobileNumber: areTeammates ? full.phoneNumber : undefined,
       is_teammate: areTeammates,
       skills: full.skills,
       roles: full.roles,
       problem_statement_names: full.problemStatements.map((p) => p.title),
+      problemStatements: full.problemStatements,
       compatibility_score: compatibility?.score,
       compatibility_rationale: compatibility?.rationale,
     });
   });
 }
-
-const updateSchema = z.object({
-  fullName: z.string().min(2).max(120).optional(),
-  college: z.string().min(2).max(160).optional(),
-  branch: z.string().min(2).max(120).optional(),
-  year: z.number().int().min(1).max(6).optional(),
-  experience: z.enum(["Beginner", "Intermediate", "Advanced"]).optional(),
-  availability: z.enum(["Full-time", "Part-time", "Flexible"]).optional(),
-  bio: z.string().max(1000).optional(),
-  avatarUrl: z.string().url().optional(),
-  githubUsername: z.string().max(60).optional().nullable(),
-  phoneNumber: z.string().max(30).optional().nullable(),
-  skills: z.array(z.string()).optional(),
-  roles: z.array(z.string()).optional(),
-  problemStatementIds: z.array(z.number()).optional(),
-  isLookingForTeam: z.boolean().optional(),
-});
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   return withApiError(async () => {
@@ -96,34 +134,58 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ error: "Forbidden: you can only update your own profile" }, { status: 403 });
     }
 
-    const json = await req.json().catch(() => null);
-    const parsed = updateSchema.safeParse(json);
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid input" }, { status: 400 });
-    }
-    const data = parsed.data;
+    const json = await req.json().catch(() => ({}));
     const supabase = createServerSupabase();
 
     const { data: existing } = await supabase.from("profiles").select("id").eq("id", params.id).maybeSingle();
     if (!existing) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
     const update: Record<string, any> = {};
-    if (data.fullName !== undefined) update.full_name = data.fullName;
-    if (data.college !== undefined) update.college = data.college;
-    if (data.branch !== undefined) update.branch = data.branch;
-    if (data.year !== undefined) update.year = data.year;
-    if (data.experience !== undefined) update.experience = data.experience;
-    if (data.availability !== undefined) update.availability = data.availability;
-    if (data.bio !== undefined) update.bio = data.bio;
-    if (data.avatarUrl !== undefined) update.avatar_url = data.avatarUrl;
-    if (data.isLookingForTeam !== undefined) update.is_looking_for_team = data.isLookingForTeam;
-    if (data.phoneNumber !== undefined) update.phone_number = data.phoneNumber || null;
-    if (data.githubUsername !== undefined) {
-      update.github_username = data.githubUsername || null;
-      update.github_public_repos = data.githubUsername
-        ? (await lookupGithubUser(data.githubUsername)).publicRepos
-        : null;
+
+    if (json.fullName !== undefined || json.full_name !== undefined || json.name !== undefined) {
+      const name = String(json.fullName || json.full_name || json.name || "").trim();
+      if (name.length >= 2) update.full_name = name;
     }
+    if (json.college !== undefined) {
+      const col = String(json.college || "").trim();
+      if (col.length >= 2) update.college = col;
+    }
+    if (json.branch !== undefined) {
+      update.branch = String(json.branch || "").trim();
+    }
+    if (json.year !== undefined || json.graduationYear !== undefined || json.graduation_year !== undefined) {
+      update.year = parseYear(json.year || json.graduationYear || json.graduation_year);
+    }
+    if (json.experience !== undefined || json.experienceLevel !== undefined || json.experience_level !== undefined) {
+      update.experience = parseExperience(json.experience || json.experienceLevel || json.experience_level);
+    }
+    if (json.availability !== undefined) {
+      update.availability = parseAvailability(json.availability);
+    }
+    if (json.bio !== undefined) {
+      update.bio = String(json.bio || "").trim();
+    }
+    if (json.avatarUrl !== undefined || json.avatar_url !== undefined) {
+      update.avatar_url = cleanAvatarUrl(json.avatarUrl || json.avatar_url);
+    }
+    if (json.mobileNumber !== undefined || json.phoneNumber !== undefined || json.phone_number !== undefined) {
+      update.phone_number = String(json.mobileNumber || json.phoneNumber || json.phone_number || "").trim() || null;
+    }
+    if (json.isLookingForTeam !== undefined || json.is_looking_for_team !== undefined) {
+      update.is_looking_for_team = json.isLookingForTeam !== false && json.is_looking_for_team !== false;
+    }
+
+    if (
+      json.githubUsername !== undefined ||
+      json.github_username !== undefined ||
+      json.githubUrl !== undefined ||
+      json.github_url !== undefined
+    ) {
+      const gh = cleanGithubUsername(json.githubUsername || json.github_username || json.githubUrl || json.github_url);
+      update.github_username = gh;
+      update.github_public_repos = gh ? (await lookupGithubUser(gh)).publicRepos : null;
+    }
+
     update.updated_at = new Date().toISOString();
 
     if (Object.keys(update).length > 0) {
@@ -131,28 +193,36 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    if (data.skills) {
+    // Skills
+    if (json.skills && Array.isArray(json.skills)) {
+      const skills = json.skills.map((s: any) => String(s).trim()).filter(Boolean);
       await supabase.from("user_skills").delete().eq("profile_id", params.id);
-      const skillIds = await upsertLookupIds(supabase, "skills", data.skills);
+      const skillIds = await upsertLookupIds(supabase, "skills", skills);
       if (skillIds.length > 0) {
         await supabase.from("user_skills").insert(skillIds.map((skill_id) => ({ profile_id: params.id, skill_id })));
       }
     }
 
-    if (data.roles) {
+    // Roles
+    const rawRoles = json.roles || json.preferredRoles;
+    if (rawRoles && Array.isArray(rawRoles)) {
+      const roles = rawRoles.map((r: any) => String(r).trim()).filter(Boolean);
       await supabase.from("user_roles").delete().eq("profile_id", params.id);
-      const roleIds = await upsertLookupIds(supabase, "roles", data.roles);
+      const roleIds = await upsertLookupIds(supabase, "roles", roles);
       if (roleIds.length > 0) {
         await supabase.from("user_roles").insert(roleIds.map((role_id) => ({ profile_id: params.id, role_id })));
       }
     }
 
-    if (data.problemStatementIds) {
+    // Problem Statements
+    const rawPS = json.problemStatementIds || json.problem_statement_ids;
+    if (rawPS && Array.isArray(rawPS)) {
+      const psIds = rawPS.map((id: any) => Number(id)).filter((id: number) => !isNaN(id) && id > 0);
       await supabase.from("profile_problem_statements").delete().eq("profile_id", params.id);
-      if (data.problemStatementIds.length > 0) {
+      if (psIds.length > 0) {
         await supabase
           .from("profile_problem_statements")
-          .insert(data.problemStatementIds.map((problem_statement_id) => ({ profile_id: params.id, problem_statement_id })));
+          .insert(psIds.map((problem_statement_id: number) => ({ profile_id: params.id, problem_statement_id })));
       }
     }
 

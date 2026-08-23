@@ -18,7 +18,6 @@ export async function buildTeamDetail(supabase: SupabaseClient, teamId: string, 
     psTitle = ps?.title || null;
   }
 
-  // Get all members for this team
   const { data: memberRows } = await supabase
     .from("team_members")
     .select("profile_id")
@@ -80,7 +79,6 @@ export async function buildTeamDetail(supabase: SupabaseClient, teamId: string, 
 }
 
 export async function getUserTeam(supabase: SupabaseClient, userId: string) {
-  // 1. Check if user leads any team
   const { data: leadingTeam } = await supabase
     .from("teams")
     .select("id")
@@ -91,7 +89,6 @@ export async function getUserTeam(supabase: SupabaseClient, userId: string) {
     return await buildTeamDetail(supabase, leadingTeam.id, userId);
   }
 
-  // 2. Check if user is a member of any team
   const { data: membership } = await supabase
     .from("team_members")
     .select("team_id")
