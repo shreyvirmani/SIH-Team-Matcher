@@ -15,8 +15,9 @@ export function useRealtimeNotifications(userId: string | undefined, onEvent: ()
     if (!userId) return;
 
     const supabase = createClient();
+    const channelId = `notifications:${userId}:${Math.random().toString(36).slice(2)}`;
     const channel = supabase
-      .channel(`notifications:${userId}`)
+      .channel(channelId)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `receiver_profile_id=eq.${userId}` },

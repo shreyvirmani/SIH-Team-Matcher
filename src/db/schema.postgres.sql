@@ -20,6 +20,7 @@ create table if not exists profiles (
   avatar_url text,
   github_username text,
   github_public_repos int,
+  phone_number text,
   is_looking_for_team boolean not null default true,
   is_admin boolean not null default false,
   created_at timestamptz not null default now(),

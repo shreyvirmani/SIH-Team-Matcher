@@ -11,7 +11,13 @@ export async function GET() {
 
   const profile = await getFullProfile(supabase, user.id);
   return NextResponse.json({
-    user: { id: user.id, email: user.email, isAdmin: !!profile?.isAdmin },
+    user: {
+      id: user.id,
+      email: user.email,
+      isAdmin: !!profile?.isAdmin,
+      createdAt: user.created_at,
+      lastSignInAt: user.last_sign_in_at,
+    },
     profile,
   });
 }

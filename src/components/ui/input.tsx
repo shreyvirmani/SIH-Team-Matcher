@@ -1,3 +1,5 @@
+"use client";
+
 import { InputHTMLAttributes, forwardRef } from "react";
 
 interface Props extends InputHTMLAttributes<HTMLInputElement> {

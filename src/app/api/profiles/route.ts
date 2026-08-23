@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
@@ -17,6 +17,7 @@ const profileSchema = z.object({
   bio: z.string().max(1000).optional().default(""),
   avatarUrl: z.string().url().optional(),
   githubUsername: z.string().max(60).optional(),
+  phoneNumber: z.string().max(30).optional().nullable(),
   skills: z.array(z.string()).min(1, "Select at least one skill"),
   roles: z.array(z.string()).min(1, "Select at least one role"),
   problemStatementIds: z.array(z.number()).default([]),
@@ -58,6 +59,7 @@ export async function POST(req: NextRequest) {
       avatar_url: data.avatarUrl,
       github_username: data.githubUsername || null,
       github_public_repos: githubPublicRepos,
+      phone_number: data.phoneNumber || null,
       is_looking_for_team: data.isLookingForTeam,
     });
     if (insertError) return NextResponse.json({ error: insertError.message }, { status: 400 });
@@ -141,7 +143,6 @@ export async function GET(req: NextRequest) {
     }
 
     // AI-powered compatibility scoring against the current user's profile.
-    // Graceful degradation: if the current user has no profile yet, skip scoring.
     const { data: currentProfileExists } = await supabase
       .from("profiles")
       .select("id")
@@ -185,6 +186,7 @@ export async function GET(req: NextRequest) {
           problem_statement_names: full.problemStatements.map((p) => p.title),
           compatibility_score: entry.score,
           compatibility_rationale: entry.rationale,
+          // Notice: phone_number is deliberately NOT included here (privacy protection)
         };
       })
     );

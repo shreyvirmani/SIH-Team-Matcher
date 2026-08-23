@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
@@ -40,15 +40,33 @@ export default function DiscoverPage() {
   const [loading, setLoading] = useState(true);
   const [requestingId, setRequestingId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
-  const [feedback, setFeedback] = useState("");
+  const [sentRequestIds, setSentRequestIds] = useState<Set<string>>(new Set());
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const limit = 9;
+
+  const loadSavedAndSent = useCallback(async () => {
+    try {
+      const [savedRes, sentRes] = await Promise.all([
+        apiFetch("/api/saved-profiles").catch(() => ({ profiles: [] })),
+        apiFetch("/api/team-requests?direction=sent").catch(() => ({ requests: [] })),
+      ]);
+      setSavedIds(new Set((savedRes.profiles || []).map((p: any) => p.id)));
+      setSentRequestIds(
+        new Set(
+          (sentRes.requests || [])
+            .filter((r: any) => r.status === "pending" || r.status === "accepted")
+            .map((r: any) => r.receiver_profile_id)
+        )
+      );
+    } catch {
+      // non-fatal
+    }
+  }, []);
 
   useEffect(() => {
     apiFetch("/api/lookups").then(setLookups).catch(() => {});
-    apiFetch("/api/saved-profiles")
-      .then((res) => setSavedIds(new Set(res.profiles.map((p: any) => p.id))))
-      .catch(() => {});
-  }, []);
+    loadSavedAndSent();
+  }, [loadSavedAndSent]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,8 +78,8 @@ export default function DiscoverPage() {
     if (availability) params.set("availability", availability);
     try {
       const res = await apiFetch(`/api/profiles?${params.toString()}`);
-      setProfiles(res.profiles);
-      setTotal(res.total);
+      setProfiles(res.profiles || []);
+      setTotal(res.total || 0);
     } catch {
       setProfiles([]);
     } finally {
@@ -73,17 +91,27 @@ export default function DiscoverPage() {
     load();
   }, [load]);
 
-  const sendRequest = async (profileId: string) => {
+  const sendRequest = async (profileId: string, profileName: string) => {
     setRequestingId(profileId);
-    setFeedback("");
+    setFeedback(null);
     try {
       await apiFetch("/api/team-requests", {
         method: "POST",
         body: JSON.stringify({ receiver_profile_id: profileId }),
       });
-      setFeedback("Team request sent!");
+      setSentRequestIds((prev) => new Set([...Array.from(prev), profileId]));
+      setFeedback({
+        type: "success",
+        text: `Team request sent to ${profileName}! They have been notified.`,
+      });
     } catch (err: any) {
-      setFeedback(err.message);
+      if (err.message?.includes("already have a pending request")) {
+        setSentRequestIds((prev) => new Set([...Array.from(prev), profileId]));
+      }
+      setFeedback({
+        type: "error",
+        text: err.message || "Failed to send team request.",
+      });
     } finally {
       setRequestingId(null);
     }
@@ -101,7 +129,6 @@ export default function DiscoverPage() {
       if (isSaved) await apiFetch(`/api/saved-profiles/${profileId}`, { method: "DELETE" });
       else await apiFetch("/api/saved-profiles", { method: "POST", body: JSON.stringify({ profile_id: profileId }) });
     } catch {
-      // revert on failure
       setSavedIds((prev) => {
         const next = new Set(prev);
         if (isSaved) next.add(profileId);
@@ -114,15 +141,37 @@ export default function DiscoverPage() {
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
-    <div>
+    <div className="space-y-6 pb-16">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold text-white">Discover teammates</h1>
-        <p className="text-sm text-slate-400">Ranked by AI compatibility score against your profile.</p>
+        <h1 className="text-2xl font-bold text-white">Discover Teammates</h1>
+        <p className="text-sm text-slate-400">
+          Ranked by AI compatibility score against your SIH 2026 profile.
+        </p>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+      {feedback && (
+        <div
+          className={`flex items-center justify-between rounded-xl border p-4 text-sm font-medium ${
+            feedback.type === "success"
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+              : "border-red-500/30 bg-red-500/10 text-red-300"
+          }`}
+        >
+          <span>{feedback.text}</span>
+          <button
+            type="button"
+            onClick={() => setFeedback(null)}
+            className="text-xs opacity-70 hover:opacity-100"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="grid gap-3 sm:grid-cols-3">
         <Input
-          placeholder="Search by name, college, bio…"
+          placeholder="Search by name, college, skills, bio…"
           value={search}
           onChange={(e) => {
             setPage(1);
@@ -150,106 +199,157 @@ export default function DiscoverPage() {
             setAvailability(e.target.value);
           }}
         >
-          <option value="">Any availability</option>
-          <option>Full-time</option>
-          <option>Part-time</option>
-          <option>Flexible</option>
+          <option value="">All availability</option>
+          <option value="Full-time">Full-time</option>
+          <option value="Part-time">Part-time</option>
+          <option value="Flexible">Flexible</option>
         </Select>
       </div>
 
-      {feedback && <p className="mt-3 text-sm text-indigo-300">{feedback}</p>}
-
+      {/* Profiles Grid */}
       {loading ? (
-        <p className="mt-8 text-slate-400">Finding your best matches…</p>
+        <div className="py-16 text-center text-slate-400">
+          <p>Finding matching teammates for SIH 2026…</p>
+        </div>
       ) : profiles.length === 0 ? (
-        <p className="mt-8 text-slate-400">No students match these filters yet. Try widening your search.</p>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-12 text-center">
+          <p className="text-lg font-semibold text-white">No teammates found</p>
+          <p className="mt-1 text-sm text-slate-400">
+            Try loosening your filters or searching for different skills.
+          </p>
+        </div>
       ) : (
-        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {profiles.map((p) => (
-            <TiltCard key={p.profile_id} className="flex flex-col gap-3 p-5">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-3">
-                  <Avatar url={p.avatar_url} name={p.name} size={44} />
-                  <div>
-                    <Link href={`/profile/${p.profile_id}`} className="font-semibold text-white hover:text-indigo-300">
-                      {p.name}
-                    </Link>
-                    <p className="text-xs text-slate-500">
-                      {p.college} • {p.branch} • Yr {p.year}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  {typeof p.compatibility_score === "number" && (
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-sm font-bold text-white shadow-[0_0_14px_-2px_rgba(99,102,241,0.8)]">
-                      {p.compatibility_score}
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {profiles.map((p) => {
+            const hasSentRequest = sentRequestIds.has(p.profile_id);
+            return (
+              <TiltCard key={p.profile_id} className="flex flex-col gap-4 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar url={p.avatar_url} name={p.name} size={48} />
+                    <div>
+                      <Link
+                        href={`/profile/${p.profile_id}`}
+                        className="font-semibold text-white hover:text-indigo-300 transition-colors line-clamp-1"
+                      >
+                        {p.name}
+                      </Link>
+                      <p className="text-xs text-slate-400 line-clamp-1">
+                        {p.college} • {p.branch}
+                      </p>
                     </div>
-                  )}
+                  </div>
                   <button
+                    type="button"
                     onClick={() => toggleSave(p.profile_id)}
-                    className={`text-xs ${savedIds.has(p.profile_id) ? "text-amber-300" : "text-slate-500 hover:text-slate-300"}`}
-                    title={savedIds.has(p.profile_id) ? "Remove bookmark" : "Save for later"}
+                    title={savedIds.has(p.profile_id) ? "Remove bookmark" : "Bookmark student"}
+                    className={`rounded-lg p-1.5 transition-colors ${
+                      savedIds.has(p.profile_id)
+                        ? "text-amber-400 bg-amber-400/10"
+                        : "text-slate-500 hover:text-slate-200 hover:bg-white/5"
+                    }`}
                   >
-                    {savedIds.has(p.profile_id) ? "★ Saved" : "☆ Save"}
+                    ★
                   </button>
                 </div>
-              </div>
 
-              {p.compatibility_rationale && (
-                <p className="text-xs italic text-indigo-300">{p.compatibility_rationale}</p>
-              )}
+                {/* Compatibility Score */}
+                {typeof p.compatibility_score === "number" && (
+                  <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-indigo-300">
+                        AI Compatibility
+                      </span>
+                      <span className="font-bold text-white text-sm">
+                        {p.compatibility_score}%
+                      </span>
+                    </div>
+                    {p.compatibility_rationale && (
+                      <p className="mt-1 text-xs text-indigo-200/80 leading-relaxed">
+                        {p.compatibility_rationale}
+                      </p>
+                    )}
+                  </div>
+                )}
 
-              {p.github_username && (
-                <a
-                  href={`https://github.com/${p.github_username}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-fit text-xs text-slate-400 hover:text-indigo-300"
-                >
-                  ⌥ github.com/{p.github_username}
-                  {typeof p.github_public_repos === "number" && ` · ${p.github_public_repos} public repos`}
-                </a>
-              )}
+                {/* Bio */}
+                {p.bio && (
+                  <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">
+                    {p.bio}
+                  </p>
+                )}
 
-              <div className="flex flex-wrap gap-1.5">
-                {p.skills.slice(0, 4).map((s) => (
-                  <Badge key={s} color="indigo">
-                    {s}
-                  </Badge>
-                ))}
-                {p.skills.length > 4 && <Badge>+{p.skills.length - 4}</Badge>}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {p.roles.map((r) => (
-                  <Badge key={r} color="slate">
-                    {r}
-                  </Badge>
-                ))}
-              </div>
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span>{p.availability}</span>
-                <span>{p.experience}</span>
-              </div>
+                {/* GitHub */}
+                {p.github_username && (
+                  <a
+                    href={`https://github.com/${p.github_username}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-fit text-xs text-slate-400 hover:text-indigo-300 transition-colors"
+                  >
+                    ⌥ github.com/{p.github_username}
+                    {typeof p.github_public_repos === "number" &&
+                      ` · ${p.github_public_repos} repos`}
+                  </a>
+                )}
 
-              <div className="mt-1 flex gap-2">
-                <Link href={`/profile/${p.profile_id}`} className="flex-1">
-                  <Button variant="outline" className="w-full">
-                    View profile
-                  </Button>
-                </Link>
-                <Button
-                  className="flex-1"
-                  loading={requestingId === p.profile_id}
-                  onClick={() => sendRequest(p.profile_id)}
-                >
-                  Send request
-                </Button>
-              </div>
-            </TiltCard>
-          ))}
+                {/* Skills */}
+                <div className="flex flex-wrap gap-1.5">
+                  {p.skills.slice(0, 4).map((s) => (
+                    <Badge key={s} color="indigo">
+                      {s}
+                    </Badge>
+                  ))}
+                  {p.skills.length > 4 && <Badge>+{p.skills.length - 4}</Badge>}
+                </div>
+
+                {/* Roles */}
+                <div className="flex flex-wrap gap-1.5">
+                  {p.roles.map((r) => (
+                    <Badge key={r} color="slate">
+                      {r}
+                    </Badge>
+                  ))}
+                </div>
+
+                {/* Availability & Experience */}
+                <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+                  <span>🕒 {p.availability}</span>
+                  <span>⭐ {p.experience}</span>
+                </div>
+
+                {/* Actions */}
+                <div className="mt-auto flex gap-2 pt-2 border-t border-white/5">
+                  <Link href={`/profile/${p.profile_id}`} className="flex-1">
+                    <Button variant="outline" className="w-full text-xs">
+                      View Profile
+                    </Button>
+                  </Link>
+                  {hasSentRequest ? (
+                    <Button
+                      variant="secondary"
+                      disabled={true}
+                      className="flex-1 text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-default"
+                    >
+                      ✓ Request Sent
+                    </Button>
+                  ) : (
+                    <Button
+                      className="flex-1 text-xs"
+                      loading={requestingId === p.profile_id}
+                      onClick={() => sendRequest(p.profile_id, p.name)}
+                    >
+                      Send Request
+                    </Button>
+                  )}
+                </div>
+              </TiltCard>
+            );
+          })}
         </div>
       )}
 
+      {/* Pagination */}
       {totalPages > 1 && (
         <div className="mt-8 flex items-center justify-center gap-3">
           <Button variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>

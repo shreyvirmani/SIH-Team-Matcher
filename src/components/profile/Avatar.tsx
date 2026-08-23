@@ -1,3 +1,5 @@
+"use client";
+
 export default function Avatar({
   url,
   name,
@@ -7,7 +9,7 @@ export default function Avatar({
   name: string;
   size?: number;
 }) {
-  const initials = name
+  const initials = (name || "?")
     .split(" ")
     .map((p) => p[0])
     .slice(0, 2)

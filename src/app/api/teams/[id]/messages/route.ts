@@ -1,12 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { withApiError } from "@/lib/api-helpers";
-
-// RLS on team_messages already restricts reads/writes to current team
-// members (see schema.postgres.sql), so this route mostly just validates
-// input and lets Postgres enforce the actual access control.
+import { createNotification } from "@/lib/profiles";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   return withApiError(async () => {
@@ -53,10 +50,30 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       .single();
 
     if (error) {
-      // RLS will reject this with a permission-denied-shaped error if the
-      // caller isn't actually a member of this team.
       return NextResponse.json({ error: "You must be a member of this team to post" }, { status: 403 });
     }
+
+    // Send notifications to all other team members in background
+    (async () => {
+      try {
+        const [{ data: senderProfile }, { data: otherMembers }] = await Promise.all([
+          supabase.from("profiles").select("full_name").eq("id", session.id).maybeSingle(),
+          supabase.from("team_members").select("profile_id").eq("team_id", params.id).neq("profile_id", session.id),
+        ]);
+        const senderName = senderProfile?.full_name || "A teammate";
+        const preview = parsed.data.body.length > 50 ? parsed.data.body.slice(0, 50) + "…" : parsed.data.body;
+        for (const member of otherMembers || []) {
+          await createNotification(
+            supabase,
+            member.profile_id,
+            "team_message",
+            `💬 ${senderName} in squad chat: "${preview}"`
+          );
+        }
+      } catch (err) {
+        console.warn("Failed to notify team members of chat message:", err);
+      }
+    })();
 
     return NextResponse.json(data, { status: 201 });
   });

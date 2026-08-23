@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { requireUser, getSessionUser } from "@/lib/auth";
@@ -26,6 +26,28 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       compatibility = { score: result.score, rationale: result.rationale };
     }
 
+    // Check if the requester is the profile owner or a confirmed teammate
+    let areTeammates = false;
+    if (session.id === params.id) {
+      areTeammates = true;
+    } else {
+      const { data: myTeams } = await supabase
+        .from("team_members")
+        .select("team_id")
+        .eq("profile_id", session.id);
+      const teamIds = (myTeams || []).map((t: any) => t.team_id);
+      if (teamIds.length > 0) {
+        const { data: sharedMember } = await supabase
+          .from("team_members")
+          .select("profile_id")
+          .eq("profile_id", params.id)
+          .in("team_id", teamIds)
+          .limit(1)
+          .maybeSingle();
+        if (sharedMember) areTeammates = true;
+      }
+    }
+
     return NextResponse.json({
       profile_id: full.id,
       user_id: full.id,
@@ -39,6 +61,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       avatar_url: full.avatarUrl,
       github_username: full.githubUsername,
       github_public_repos: full.githubPublicRepos,
+      phone_number: areTeammates ? full.phoneNumber : undefined,
+      is_teammate: areTeammates,
       skills: full.skills,
       roles: full.roles,
       problem_statement_names: full.problemStatements.map((p) => p.title),
@@ -58,6 +82,7 @@ const updateSchema = z.object({
   bio: z.string().max(1000).optional(),
   avatarUrl: z.string().url().optional(),
   githubUsername: z.string().max(60).optional().nullable(),
+  phoneNumber: z.string().max(30).optional().nullable(),
   skills: z.array(z.string()).optional(),
   roles: z.array(z.string()).optional(),
   problemStatementIds: z.array(z.number()).optional(),
@@ -92,6 +117,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (data.bio !== undefined) update.bio = data.bio;
     if (data.avatarUrl !== undefined) update.avatar_url = data.avatarUrl;
     if (data.isLookingForTeam !== undefined) update.is_looking_for_team = data.isLookingForTeam;
+    if (data.phoneNumber !== undefined) update.phone_number = data.phoneNumber || null;
     if (data.githubUsername !== undefined) {
       update.github_username = data.githubUsername || null;
       update.github_public_repos = data.githubUsername

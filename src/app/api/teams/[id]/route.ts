@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
@@ -7,8 +7,6 @@ import { getFullProfile } from "@/lib/profiles";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // A small "ideal team" role checklist used to compute what's missing.
-// This keeps the feature honest and explainable rather than pretending to
-// be a deep AI judgment call.
 const IDEAL_ROLES = ["Frontend Developer", "Backend Developer", "UI/UX Designer", "ML Engineer"];
 const COMMONLY_NEEDED_SKILLS = ["React", "Node.js", "Python", "UI/UX Design", "Machine Learning", "SQL"];
 
@@ -32,6 +30,8 @@ async function buildTeamDetail(supabase: SupabaseClient, teamId: string) {
         profile_id: full.id,
         name: full.fullName,
         avatar_url: full.avatarUrl,
+        phone_number: full.phoneNumber,
+        college: full.college,
         roles: full.roles,
         skills: full.skills,
         is_leader: full.id === team.leader_profile_id,

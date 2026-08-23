@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -8,6 +8,7 @@ import { useRealtimeNotifications } from "@/lib/use-realtime-notifications";
 import { apiFetch } from "@/lib/api-client";
 import Button from "@/components/ui/button";
 import Avatar from "@/components/profile/Avatar";
+import SIHLogo from "@/components/common/SIHLogo";
 
 const NAV_ITEMS = [
   { href: "/discover", label: "Discover" },
@@ -15,6 +16,7 @@ const NAV_ITEMS = [
   { href: "/my-requests", label: "My Requests" },
   { href: "/saved", label: "Saved" },
   { href: "/notifications", label: "Notifications" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export default function Header() {
@@ -47,12 +49,12 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/70 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <Link href="/" className="flex items-center gap-2 font-bold text-white">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white shadow-[0_0_16px_-2px_rgba(99,102,241,0.8)]">
-            S
-          </span>
-          SIH Team Matcher
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2.5">
+        <Link
+          href={user ? "/discover" : "/"}
+          className="flex items-center gap-2 group transition-transform"
+        >
+          <SIHLogo size="sm" showText={true} />
         </Link>
 
         {!loading && user && (
@@ -89,11 +91,13 @@ export default function Header() {
         <div className="flex items-center gap-3">
           {!loading && user ? (
             <>
-              <Link href="/my-profile" className="hidden items-center gap-2 sm:flex">
+              <Link href="/my-profile" className="hidden items-center gap-2 sm:flex p-1.5 rounded-lg hover:bg-white/5 transition-colors">
                 <Avatar url={profile?.avatarUrl} name={profile?.fullName || user.email} size={28} />
-                <span className="text-sm text-slate-300 hover:text-white">{profile?.fullName || user.email}</span>
+                <span className="text-sm text-slate-300 hover:text-white font-medium truncate max-w-[130px]">
+                  {profile?.fullName || user.email.split("@")[0]}
+                </span>
               </Link>
-              <Button variant="outline" onClick={handleLogout}>
+              <Button variant="outline" onClick={handleLogout} className="text-xs">
                 Log out
               </Button>
             </>
