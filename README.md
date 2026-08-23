@@ -1,122 +1,165 @@
 # SIH Team Matcher
 
-AI-powered teammate matching for SIH hackathon participants. Students build a
-profile, browse teammates ranked by an explainable 0–100 compatibility score,
-send/accept team requests, and manage their team's roster — including
-detection of missing roles/skills with suggested teammates to fill the gap.
+AI-powered teammate matching for SIH hackathon participants, on a real
+Supabase (Postgres + Auth + Realtime + Storage) backend, with a 3D
+glassmorphic UI.
 
-## Important: local dev database, not live Supabase/Vercel
+## What's new since the demo build
 
-The implementation brief specifies Supabase (Postgres + Auth) and Vercel.
-**This build could not provision or reach those services** — the sandbox this
-was built in only has network access to package registries (npm, GitHub),
-not to supabase.co or vercel.com. Rather than fake the integration, the app
-runs on a local SQLite database (`better-sqlite3`) and a self-rolled
-JWT/bcrypt auth layer that mirror Supabase's exact data shape and contract:
+This started as a working local demo (SQLite + custom JWT auth). It has
+since been rebuilt for real deployment:
 
-- `src/db/schema.sqlite.sql` — the schema actually running locally.
-- `src/db/schema.postgres.sql` — the **same** schema written for Postgres,
-  including the Row Level Security policies described in the brief. Apply
-  this directly in the Supabase SQL editor when you're ready to go live.
-- `src/lib/auth.ts` — the only file that knows about sessions/passwords/JWTs.
-  Swapping to Supabase Auth means replacing the internals of this one file;
-  no other file (API routes, pages) needs to change, because they only call
-  `requireSession()` / `getSessionFromRequest()`.
-- `src/lib/db.ts` — the only file that opens a database connection. Swap this
-  for a Supabase client and update the raw-SQL calls in `src/lib/profiles.ts`
-  and the API routes to Supabase's query builder.
+**Backend**
+- Real Supabase Auth (email/password, session cookies via `@supabase/ssr`)
+- Real Postgres with Row Level Security on every table (`src/db/schema.postgres.sql`)
+- Supabase Realtime for live notifications and team chat (no more polling)
+- Supabase Storage for profile picture uploads
+- Rate limiting + session-refresh middleware (`middleware.ts`)
 
-Everything else — every page, every API route, the matching engine, the
-validation, the team logic — is real, working code, not a mockup.
+**New features**
+- Avatar upload
+- GitHub profile verification (real `api.github.com` lookup + public repo count)
+- Team chat (realtime, per-team, RLS-restricted to members)
+- Saved/bookmarked profiles (`/saved`)
+- Live unread-notification badge in the header
 
-## The "Existing HackMind AI/backend architecture"
+**UI**
+- Full dark, glassmorphic redesign with a 3D mouse-tracked tilt-card component
+  used throughout (landing page, Discover), animated gradient mesh background,
+  glow shadows, and 3D-feeling button presses
 
-The brief treats an external "HackMind AI" service as a given, but it's an
-undefined black box — flagged as the #1 technical risk in the brief's own
-judge report (Technical Feasibility scored 4/10 specifically because of this
-undefined dependency). Rather than pretend to call a service that doesn't
-exist, `src/lib/matching.ts` implements the compatibility scoring for real: a
-transparent, explainable rule-based model (problem-statement overlap,
-complementary skills/roles, availability, experience balance) exposed behind
-`POST /api/match/compatibility` exactly per the API contract. A real
-embeddings/LLM-based service can be swapped in later without touching any
-caller — that's the whole reason it's isolated behind one module and one API
-route.
+## 1. Create a Supabase project
 
-## Setup
+1. Go to [supabase.com](https://supabase.com) → New Project. Note your project's
+   **Project URL**, **anon public key**, and **service_role key** (Project
+   Settings → API).
+2. Open the SQL Editor and run **`src/db/schema.postgres.sql`** — this creates
+   every table, index, RLS policy, the Realtime publication entries, and the
+   `avatars` Storage bucket in one shot. (`src/db/migrations/` has the same
+   thing split into two files if you'd rather apply it incrementally.)
+3. Auth → Providers: email/password is on by default. Decide whether you want
+   **email confirmation** required (Auth → Settings) — the signup page already
+   handles both cases.
+
+## 2. Configure environment variables
+
+```bash
+cp .env.example .env.local
+```
+
+Fill in:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-public-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key   # server-only, never commit or expose to the browser
+```
+
+## 3. Install, seed, run
 
 ```bash
 npm install
-npm run seed   # creates data/app.db, seeds skills/roles/problem statements + admin account
+npm run seed   # seeds skills/roles/problem statements + a demo admin account into YOUR Supabase project
 npm run dev    # http://localhost:3000
 ```
 
-Environment variables (see `.env.example`):
+Demo admin login (created by the seed script): `admin@sihmatcher.dev` /
+`Admin@123` — **change this password immediately**, this is a real account in
+your real project.
 
-| Variable | Required | Purpose |
-|---|---|---|
-| `JWT_SECRET` | Yes | Signs session cookies. A dev default is provided in `.env.local`; **replace it in production.** |
-
-Demo admin login (seeded automatically): `admin@sihmatcher.dev` / `Admin@123`
-— change this password immediately in any real deployment.
-
-## Commands
+## 4. Deploy to Vercel
 
 ```bash
-npm run dev      # local dev server
-npm run build    # production build (also type-checks and lints)
-npm run start    # run the production build
-npm run lint     # eslint
-npm run seed     # (re)seed lookup tables + admin account (safe to re-run, uses INSERT OR IGNORE)
+npm i -g vercel   # if you don't have it
+vercel
 ```
 
-To reset all data: stop the server, delete `data/app.db*`, run `npm run seed` again.
+Or connect the GitHub repo (see below) to Vercel directly from their
+dashboard for automatic CI/CD on every push to `main`. Either way, add the
+same three environment variables from `.env.local` in Vercel's Project
+Settings → Environment Variables (all three, including the service role key
+— Vercel env vars are encrypted server-side and never shipped to the client
+unless prefixed `NEXT_PUBLIC_`).
 
-## What's implemented (CORE MVP — all working end-to-end)
+## Applying the patch files
 
-- Supabase-Auth-shaped signup/login/logout with bcrypt + JWT session cookies
-- Profile onboarding: college, branch, year, skills, roles, experience, availability, bio, SIH problem statement(s)
-- Discover Teammates: search, filter by college/availability/skills/roles/problem statement, pagination
-- AI-powered 0–100 compatibility score with a plain-English "why recommended" rationale
-- Send / accept / reject team requests, with notifications on both sides
-- Team creation & auto-formation on request acceptance; leader-only member removal
-- Missing role/skill detection per team, with suggested teammates who cover the gap
-- Notifications list with read/unread state (polled every 15s to approximate realtime — see Known Limitations)
-- Admin dashboard: platform stats, manage (add/activate/deactivate) problem statements, recent signups
+If you're applying this as patches on top of the previous demo build instead
+of using this zip directly:
 
-I verified this flow directly against the running server (not just by reading
-the code): signup → create profile → discover ranks by compatibility score →
-send request → recipient gets a notification → accept → team is created →
-missing-role/skill detection reflects the actual two members → sender gets an
-acceptance notification. I also verified admin-only routes reject non-admins
-(403), wrong passwords are rejected (401), and unauthenticated requests to
-protected routes are rejected (401).
+```bash
+# apply every patch in the folder, in order (0001, 0002, 0003, ...):
+git am patches/*.patch
+```
 
-## Known limitations / what a real Supabase migration should add
+(`git am` preserves the commit messages/authorship; use `git apply` instead
+if you just want the file changes without creating commits.) Then follow
+steps 1–3 above — the patches change code, not your Supabase project, so you
+still need to run the schema and seed script yourself.
 
-1. **Not live Supabase/Vercel** — see above. `schema.postgres.sql` is ready to apply.
-2. **Realtime notifications are polled, not pushed.** Supabase Realtime
-   (WebSockets) would replace the 15s polling in `notifications/page.tsx`
-   with an actual subscription — this was the brief's specified approach and
-   is the natural next step once on real Supabase.
-3. **No email notifications** (Twilio SendGrid in the brief's future scope)
-   — in-app notifications only.
-4. **Rate limiting** is not implemented — add it at the Vercel Edge/middleware
-   layer before a real deployment, as the brief recommends.
-5. **Missing-role/skill detection** uses a small fixed checklist
-   (`IDEAL_ROLES` / `commonlyNeededSkills` in `src/app/api/teams/[id]/route.ts`)
-   rather than a dynamic model of what the team's chosen problem statement
-   actually needs — reasonable for an MVP, worth revisiting.
-6. **No automated test suite** — verification here was manual/scripted
-   end-to-end curl testing of the full user journey plus a clean production
-   build. Adding Playwright/Vitest coverage is a natural next step.
-7. **No file/image uploads** (profile pictures) — out of MVP scope per the brief.
+## Pushing this to GitHub
 
-## Recommended next steps
+You'll need to do the actual push yourself (this was built in a sandbox with
+no access to your GitHub account), but it's four commands:
 
-1. Stand up a Supabase project, run `schema.postgres.sql`, and swap `src/lib/db.ts` + `src/lib/auth.ts` for Supabase client/Auth calls.
-2. Deploy to Vercel; move `JWT_SECRET` (or Supabase keys) into Vercel's environment variables.
-3. Add Supabase Realtime subscriptions for notifications.
-4. Add SendGrid for email fallback notifications.
-5. Add rate limiting middleware.
-6. Add automated tests (the manual E2E flow in this README is a good starting script to port to Playwright).
+```bash
+# from inside the project folder, if not already a git repo:
+git init
+git add -A
+git commit -m "Initial commit"
+
+# create a new repo at https://github.com/new (don't initialize it with a
+# README/gitignore — you already have those), then:
+git remote add origin https://github.com/<your-username>/<your-repo>.git
+git branch -M main
+git push -u origin main
+```
+
+If this zip already has git history (it does, if you applied the patches
+with `git am`), skip straight to the `git remote add` step.
+
+Authentication: GitHub removed password-over-HTTPS support, so `git push`
+will prompt you to either sign in via browser (if using a recent Git version)
+or use a [Personal Access Token](https://github.com/settings/tokens) as your
+password. The GitHub CLI (`gh auth login` then `gh repo create`) is the
+easiest path if you have it installed — it handles both repo creation and
+auth in one step.
+
+## Security notes for going live
+
+- **Never** commit `.env.local` or expose `SUPABASE_SERVICE_ROLE_KEY` to the
+  client — it bypasses every RLS policy. It's used server-side only, in
+  `src/lib/supabase/admin.ts` and its handful of callers.
+- Change the seeded admin password immediately.
+- The in-memory rate limiter in `middleware.ts` is single-instance only. For
+  real multi-instance production traffic, swap it for `@upstash/ratelimit` +
+  `@upstash/redis` (same call shape, different backing store) — see the
+  comment at the top of that file.
+- Unauthenticated GitHub API calls are capped at 60/hour per IP. Add a
+  `GITHUB_TOKEN` (see `.env.example`) if you expect meaningful signup volume.
+- Enable email confirmation in Supabase Auth settings before going live
+  publicly, to prevent throwaway/spam signups.
+
+## Known limitations / good next steps
+
+- No automated test suite yet — this was verified by a clean production
+  build (`npm run build`) plus manual end-to-end testing against a live
+  local server in the earlier demo phase; the Supabase-backed version
+  hasn't been re-verified against a real project from this environment
+  (no network access to supabase.co from this sandbox — see below).
+- No email notifications (SendGrid) — in-app + realtime only.
+- Missing-role/skill detection in My Team uses a small fixed checklist
+  rather than a dynamic model of what the team's problem statement needs.
+- No mobile app — this is a responsive web app only.
+
+## Important: not yet run against a live Supabase project
+
+This sandbox's network access is limited to package registries (npm, GitHub)
+— it cannot reach `*.supabase.co`. Every file compiles and type-checks
+(`npm run build` passes clean), and the Supabase query patterns used
+throughout follow the standard `@supabase/supabase-js` / `@supabase/ssr` APIs,
+but **you should smoke-test the core flow yourself** after connecting your
+own project: sign up → onboarding → discover → send request → accept →
+team formed → chat → notifications arrive live. If anything doesn't line up
+with your specific Supabase project settings (e.g. email confirmation on/off
+changes the signup redirect logic), the relevant code is in
+`src/app/api/auth/*` and `src/app/(auth)/signup/page.tsx`.
