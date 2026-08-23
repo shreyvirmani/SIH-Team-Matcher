@@ -7,6 +7,7 @@ import Hero3DCanvas from "@/components/home/Hero3DCanvas";
 import Hero3DMatchCard from "@/components/home/Hero3DMatchCard";
 import Home3DStats from "@/components/home/Home3DStats";
 import Category3DShowcase from "@/components/home/Category3DShowcase";
+import ScrollReveal, { StaggerContainer, StaggerItem } from "@/components/common/ScrollReveal";
 
 const FEATURES = [
   {
@@ -56,69 +57,79 @@ export default function Home() {
           {/* Left Column: Hero Typography & CTA */}
           <div className="text-center lg:text-left lg:col-span-6 xl:col-span-7">
             {/* Official Badges */}
-            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2.5 mb-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3.5 py-1.5 shadow-[0_0_20px_-3px_rgba(245,158,11,0.3)] backdrop-blur-md">
-                <div className="relative h-5 w-5 shrink-0 rounded-full bg-white p-0.5 overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/sih-bulb-logo.png"
-                    alt="SIH Logo"
-                    className="h-full w-full object-contain"
-                  />
+            <ScrollReveal variant="fade-down" delay={0.1}>
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2.5 mb-6">
+                <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3.5 py-1.5 shadow-[0_0_20px_-3px_rgba(245,158,11,0.3)] backdrop-blur-md">
+                  <div className="relative h-5 w-5 shrink-0 rounded-full bg-white p-0.5 overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/sih-bulb-logo.png"
+                      alt="SIH Logo"
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                  <span className="text-xs font-semibold text-amber-300">
+                    Official Smart India Hackathon Matcher
+                  </span>
                 </div>
-                <span className="text-xs font-semibold text-amber-300">
-                  Official Smart India Hackathon Matcher
-                </span>
+
+                <HackmindBadge variant="hero" />
               </div>
+            </ScrollReveal>
 
-              <HackmindBadge variant="hero" />
-            </div>
+            <ScrollReveal variant="fade-up" delay={0.2}>
+              <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl leading-[1.12]">
+                Assemble Your Winning{" "}
+                <span className="bg-gradient-to-r from-indigo-400 via-fuchsia-400 to-amber-300 bg-clip-text text-transparent drop-shadow-[0_0_35px_rgba(129,140,248,0.4)]">
+                  SIH 2026 Squad
+                </span>
+              </h1>
+            </ScrollReveal>
 
-            <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl leading-[1.12]">
-              Assemble Your Winning{" "}
-              <span className="bg-gradient-to-r from-indigo-400 via-fuchsia-400 to-amber-300 bg-clip-text text-transparent drop-shadow-[0_0_35px_rgba(129,140,248,0.4)]">
-                SIH 2026 Squad
-              </span>
-            </h1>
+            <ScrollReveal variant="fade-up" delay={0.3}>
+              <p className="mt-5 text-base sm:text-lg text-slate-300/90 leading-relaxed max-w-2xl mx-auto lg:mx-0">
+                No more searching through cluttered WhatsApp groups. Build your hacker profile, choose from all <strong className="text-amber-300 font-semibold">226 official SIH problem statements</strong>, get AI-powered compatibility scores with plain-English rationales, and form a balanced 6-member squad in minutes.
+              </p>
+            </ScrollReveal>
 
-            <p className="mt-5 text-base sm:text-lg text-slate-300/90 leading-relaxed max-w-2xl mx-auto lg:mx-0">
-              No more searching through cluttered WhatsApp groups. Build your hacker profile, choose from all <strong className="text-amber-300 font-semibold">226 official SIH problem statements</strong>, get AI-powered compatibility scores with plain-English rationales, and form a balanced 6-member squad in minutes.
-            </p>
-
-            <div className="mt-8 flex flex-col sm:flex-row justify-center lg:justify-start gap-3.5">
-              <Link href="/signup">
-                <Button className="w-full sm:w-auto px-7 py-3.5 text-base shadow-[0_0_25px_rgba(99,102,241,0.4)] hover:shadow-[0_0_35px_rgba(99,102,241,0.6)] transition-all">
-                  Get started
-                </Button>
-              </Link>
-              <Link href="/login">
-                <Button variant="outline" className="w-full sm:w-auto px-7 py-3.5 text-base hover:border-white/30">
-                  I already have an account
-                </Button>
-              </Link>
-            </div>
+            <ScrollReveal variant="fade-up" delay={0.4}>
+              <div className="mt-8 flex flex-col sm:flex-row justify-center lg:justify-start gap-3.5">
+                <Link href="/signup">
+                  <Button className="w-full sm:w-auto px-7 py-3.5 text-base shadow-[0_0_25px_rgba(99,102,241,0.4)] hover:shadow-[0_0_35px_rgba(99,102,241,0.6)] transition-all">
+                    Get started
+                  </Button>
+                </Link>
+                <Link href="/login">
+                  <Button variant="outline" className="w-full sm:w-auto px-7 py-3.5 text-base hover:border-white/30">
+                    I already have an account
+                  </Button>
+                </Link>
+              </div>
+            </ScrollReveal>
 
             {/* Quick Live Stats Pill */}
-            <div className="mt-8 flex flex-wrap items-center justify-center lg:justify-start gap-4 text-xs text-slate-400">
-              <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>226 Problem Statements</span>
+            <ScrollReveal variant="fade-up" delay={0.5}>
+              <div className="mt-8 flex flex-wrap items-center justify-center lg:justify-start gap-4 text-xs text-slate-400">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>226 Problem Statements</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-indigo-400" />
+                  <span>AI Compatibility Rationale</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-amber-400" />
+                  <span>Verified Private Contacts</span>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-indigo-400" />
-                <span>AI Compatibility Rationale</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-amber-400" />
-                <span>Verified Private Contacts</span>
-              </div>
-            </div>
+            </ScrollReveal>
           </div>
 
           {/* Right Column: 3D Match Card Preview */}
-          <div className="lg:col-span-6 xl:col-span-5 flex justify-center">
+          <ScrollReveal variant="scale-up" delay={0.25} className="lg:col-span-6 xl:col-span-5 flex justify-center">
             <Hero3DMatchCard />
-          </div>
+          </ScrollReveal>
         </div>
       </section>
 
@@ -135,7 +146,7 @@ export default function Home() {
       {/* 3D Feature Cards */}
       <section className="relative border-t border-white/10 bg-slate-900/40 py-20">
         <div className="mx-auto max-w-6xl px-4">
-          <div className="text-center">
+          <ScrollReveal variant="fade-up" className="text-center">
             <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-3.5 py-1 text-xs font-semibold text-amber-300">
               Everything You Need To Win
             </span>
@@ -145,63 +156,65 @@ export default function Home() {
             <p className="mx-auto mt-2 max-w-xl text-sm text-slate-400">
               Smart India Hackathon teams need diverse roles, shared vision, and instant communication.
             </p>
-          </div>
+          </ScrollReveal>
 
-          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <StaggerContainer staggerDelay={0.1} className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {FEATURES.map((f) => (
-              <TiltCard
-                key={f.title}
-                maxTilt={10}
-                className="p-6 text-left border border-white/10 bg-slate-900/60 shadow-[0_15px_30px_rgba(0,0,0,0.4)]"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-2xl">{f.icon}</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5">
-                    {f.tag}
-                  </span>
-                </div>
-                <h3 className="mt-4 text-base font-bold text-white leading-snug">{f.title}</h3>
-                <p className="mt-2 text-xs leading-relaxed text-slate-400">{f.desc}</p>
-              </TiltCard>
+              <StaggerItem key={f.title} variant="3d-rise">
+                <TiltCard
+                  maxTilt={10}
+                  className="p-6 text-left border border-white/10 bg-slate-900/60 shadow-[0_15px_30px_rgba(0,0,0,0.4)] h-full"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl">{f.icon}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5">
+                      {f.tag}
+                    </span>
+                  </div>
+                  <h3 className="mt-4 text-base font-bold text-white leading-snug">{f.title}</h3>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-400">{f.desc}</p>
+                </TiltCard>
+              </StaggerItem>
             ))}
-          </div>
+          </StaggerContainer>
         </div>
       </section>
 
       {/* How it works 3D Stepper */}
       <section className="relative py-20">
         <div className="mx-auto max-w-6xl px-4">
-          <div className="text-center">
+          <ScrollReveal variant="fade-up" className="text-center">
             <h2 className="text-3xl font-bold text-white sm:text-4xl">How It Works</h2>
             <p className="mx-auto mt-2 max-w-xl text-sm text-slate-400">
               From signing up to a balanced, competition-ready squad in 6 intuitive steps.
             </p>
-          </div>
+          </ScrollReveal>
 
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StaggerContainer staggerDelay={0.08} className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {STEPS.map((s) => (
-              <TiltCard
-                key={s.step}
-                maxTilt={8}
-                className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-5 hover:border-indigo-500/30"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/20 text-xs font-black text-indigo-300 border border-indigo-500/30">
-                    {s.step}
-                  </span>
-                  <span className="text-[10px] text-slate-500 font-mono">STEP {s.step}</span>
-                </div>
-                <h3 className="mt-2 text-sm font-bold text-slate-100">{s.title}</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">{s.desc}</p>
-              </TiltCard>
+              <StaggerItem key={s.step} variant="3d-rise">
+                <TiltCard
+                  maxTilt={8}
+                  className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-5 hover:border-indigo-500/30 h-full"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/20 text-xs font-black text-indigo-300 border border-indigo-500/30">
+                      {s.step}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">STEP {s.step}</span>
+                  </div>
+                  <h3 className="mt-2 text-sm font-bold text-slate-100">{s.title}</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">{s.desc}</p>
+                </TiltCard>
+              </StaggerItem>
             ))}
-          </div>
+          </StaggerContainer>
         </div>
       </section>
 
       {/* CTA & Credits Footer */}
       <section className="relative border-t border-white/10 py-16 text-center bg-slate-950/60 backdrop-blur-xl">
-        <div className="mx-auto max-w-3xl px-4 flex flex-col items-center">
+        <ScrollReveal variant="scale-up" className="mx-auto max-w-3xl px-4 flex flex-col items-center">
           <SIHLogo size="lg" showText={true} className="mb-6 justify-center" />
           <h2 className="text-3xl font-extrabold text-white sm:text-4xl">
             Ready to Build Your Winning Team?
@@ -221,7 +234,7 @@ export default function Home() {
           <div className="w-full max-w-2xl">
             <HackmindBadge variant="footer" />
           </div>
-        </div>
+        </ScrollReveal>
       </section>
     </div>
   );
