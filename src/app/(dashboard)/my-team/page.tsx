@@ -18,12 +18,14 @@ export default function MyTeamPage() {
   const [team, setTeam] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [lookups, setLookups] = useState<any>(null);
   const [form, setForm] = useState({
     name: "",
     problemStatementId: undefined as number | undefined,
   });
   const [error, setError] = useState("");
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null);
 
   const load = async () => {
@@ -49,6 +51,7 @@ export default function MyTeamPage() {
   const createTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setActionSuccess(null);
     if (!form.name.trim()) {
       setError("Please provide a name for your team.");
       return;
@@ -69,6 +72,7 @@ export default function MyTeamPage() {
         }),
       });
       setTeam(res.team);
+      setActionSuccess("Team created successfully! You can now recruit squad members.");
       await load();
     } catch (err: any) {
       setError(err.message || "Failed to create team.");
@@ -80,12 +84,15 @@ export default function MyTeamPage() {
   const removeMember = async (memberId: string) => {
     if (!team?.id) return;
     setMemberActionLoading(memberId);
+    setError("");
     try {
       await apiFetch(`/api/teams/${team.id}`, {
         method: "PATCH",
         body: JSON.stringify({ action: "remove_member", memberId }),
       });
       await load();
+    } catch (err: any) {
+      setError(err.message || "Failed to remove member.");
     } finally {
       setMemberActionLoading(null);
     }
@@ -93,14 +100,41 @@ export default function MyTeamPage() {
 
   const leaveTeam = async () => {
     if (!team?.id) return;
+    if (!confirm("Are you sure you want to leave this team?")) return;
+    setError("");
     try {
       await apiFetch(`/api/teams/${team.id}`, {
         method: "PATCH",
         body: JSON.stringify({ action: "leave" }),
       });
+      setTeam(null);
       await load();
     } catch (err: any) {
-      alert(err.message || "Failed to leave team.");
+      setError(err.message || "Failed to leave team.");
+    }
+  };
+
+  const deleteOrDisbandTeam = async () => {
+    if (!team?.id) return;
+    const confirmMessage =
+      "Are you sure you want to delete and disband this team? You will be able to create a new squad or join another team immediately.";
+    if (!confirm(confirmMessage)) return;
+
+    setDeleting(true);
+    setError("");
+    try {
+      await apiFetch(`/api/teams/${team.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "disband" }),
+      });
+      setTeam(null);
+      setForm({ name: "", problemStatementId: undefined });
+      setActionSuccess("Team disbanded successfully. You can now create a new squad!");
+      await load();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete team.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -114,27 +148,38 @@ export default function MyTeamPage() {
         </div>
 
         <div>
-          <h1 className="text-2xl font-bold text-white">Create Your Team</h1>
+          <h1 className="text-2xl font-bold text-white">Create Your SIH Squad</h1>
           <p className="mt-1 text-sm text-slate-400">
-            You don&apos;t have a team yet. Create one as the team leader, or accept a team request to join someone else&apos;s squad.
+            You are not in a squad yet. Create one as the team leader, or accept an invitation in <Link href="/my-requests" className="text-indigo-400 underline font-medium">My Requests</Link> to join another team.
           </p>
         </div>
+
+        {actionSuccess && (
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300">
+            {actionSuccess}
+          </div>
+        )}
 
         <Card className="mt-6 p-6">
           <form onSubmit={createTeam} className="flex flex-col gap-5">
             <Input
-              label="Team Name"
+              label="Team Name *"
               required
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="e.g. CodeForge SIH Warriors"
             />
 
-            <TeamProblemStatementSelector
-              problemStatements={lookups?.problemStatements || []}
-              selectedId={form.problemStatementId}
-              onChange={(id) => setForm({ ...form, problemStatementId: Number(id) })}
-            />
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                Target SIH 2026 Problem Statement *
+              </label>
+              <TeamProblemStatementSelector
+                problemStatements={lookups?.problemStatements || []}
+                selectedId={form.problemStatementId}
+                onChange={(id) => setForm({ ...form, problemStatementId: Number(id) })}
+              />
+            </div>
 
             {error && (
               <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
@@ -142,7 +187,7 @@ export default function MyTeamPage() {
               </div>
             )}
             <Button type="submit" loading={creating} className="w-full">
-              Create Team & Open Recruitment
+              Create Squad & Start Recruting
             </Button>
           </form>
         </Card>
@@ -152,6 +197,7 @@ export default function MyTeamPage() {
 
   const members = team.members || [];
   const isLeader = team.isLeader || (team.leader_profile_id && user?.id ? team.leader_profile_id === user.id : false);
+  const isOnlyMember = members.length <= 1;
 
   return (
     <div className="space-y-6 pb-16 pt-2">
@@ -163,18 +209,50 @@ export default function MyTeamPage() {
             <p className="text-sm text-slate-400">{team.problem_statement_name || "SIH 2026 Project"}</p>
           </div>
         </div>
-        <Badge color="indigo">
-          {members.length} / 6 members
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge color={members.length === 6 ? "green" : "indigo"}>
+            {members.length} / 6 members
+          </Badge>
+          {(isLeader || isOnlyMember) && (
+            <Button
+              variant="danger"
+              className="text-xs px-3 py-1.5"
+              loading={deleting}
+              onClick={deleteOrDisbandTeam}
+            >
+              🗑️ Disband Team
+            </Button>
+          )}
+        </div>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-xs text-red-300">
+          {error}
+        </div>
+      )}
+
+      {actionSuccess && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-xs text-emerald-300">
+          {actionSuccess}
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="flex flex-col gap-5">
           {/* Members List */}
           <div className="space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
-              Squad Members ({members.length})
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+                Squad Members ({members.length} / 6)
+              </h2>
+              {isOnlyMember && (
+                <span className="text-xs text-amber-400 font-medium">
+                  Solo Member (Recruit or Disband to create new)
+                </span>
+              )}
+            </div>
+
             <div className="flex flex-col gap-3">
               {members.map((m: any) => {
                 const memberIsLeader = m.role === "leader" || m.user_id === team.leader_profile_id || m.isLeader;
@@ -227,7 +305,7 @@ export default function MyTeamPage() {
             <h3 className="text-sm font-semibold text-white">Team Management</h3>
             <p className="mt-1 text-xs text-slate-400">
               {isLeader
-                ? "As team leader, you can recruit participants from Discover, manage squad members, and organize problem statements."
+                ? "As team leader, you can recruit participants from Discover, manage squad members, or delete/disband this squad to start a new one."
                 : "You are a team member. You can view contacts, collaborate on SIH solutions, or leave the squad."}
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
@@ -243,6 +321,16 @@ export default function MyTeamPage() {
                   onClick={leaveTeam}
                 >
                   Leave Team
+                </Button>
+              )}
+              {(isLeader || isOnlyMember) && (
+                <Button
+                  variant="danger"
+                  className="text-xs"
+                  loading={deleting}
+                  onClick={deleteOrDisbandTeam}
+                >
+                  Delete Team & Start Fresh
                 </Button>
               )}
             </div>
