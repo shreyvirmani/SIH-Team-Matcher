@@ -33,10 +33,10 @@ export default function MyTeamPage() {
         apiFetch("/api/teams"),
         apiFetch("/api/lookups"),
       ]);
-      setTeam(tRes.team);
+      setTeam(tRes.team || null);
       setLookups(lRes);
     } catch {
-      // non-fatal
+      setTeam(null);
     } finally {
       setLoading(false);
     }
@@ -49,25 +49,36 @@ export default function MyTeamPage() {
   const createTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    if (!form.name.trim()) {
+      setError("Please provide a name for your team.");
+      return;
+    }
+    if (!form.problemStatementId) {
+      setError("Please select a target SIH problem statement.");
+      return;
+    }
+
     setCreating(true);
     try {
       const res = await apiFetch("/api/teams", {
         method: "POST",
         body: JSON.stringify({
-          name: form.name,
+          name: form.name.trim(),
+          problem_statement_id: form.problemStatementId,
           problemStatementId: form.problemStatementId,
         }),
       });
       setTeam(res.team);
+      await load();
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "Failed to create team.");
     } finally {
       setCreating(false);
     }
   };
 
   const removeMember = async (memberId: string) => {
-    if (!team) return;
+    if (!team?.id) return;
     setMemberActionLoading(memberId);
     try {
       await apiFetch(`/api/teams/${team.id}`, {
@@ -81,12 +92,16 @@ export default function MyTeamPage() {
   };
 
   const leaveTeam = async () => {
-    if (!team) return;
-    await apiFetch(`/api/teams/${team.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ action: "leave" }),
-    });
-    await load();
+    if (!team?.id) return;
+    try {
+      await apiFetch(`/api/teams/${team.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "leave" }),
+      });
+      await load();
+    } catch (err: any) {
+      alert(err.message || "Failed to leave team.");
+    }
   };
 
   if (loading) return <p className="text-slate-400 py-12 text-center">Loading your team…</p>;
@@ -135,6 +150,9 @@ export default function MyTeamPage() {
     );
   }
 
+  const members = team.members || [];
+  const isLeader = team.isLeader || (team.leader_profile_id && user?.id ? team.leader_profile_id === user.id : false);
+
   return (
     <div className="space-y-6 pb-16 pt-2">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -142,11 +160,11 @@ export default function MyTeamPage() {
           <BackButton href="/discover" label="Back to Discover" />
           <div>
             <h1 className="text-2xl font-bold text-white">{team.name}</h1>
-            <p className="text-sm text-slate-400">{team.problem_statement_name}</p>
+            <p className="text-sm text-slate-400">{team.problem_statement_name || "SIH 2026 Project"}</p>
           </div>
         </div>
         <Badge color="indigo">
-          {team.members.length} / 6 members
+          {members.length} / 6 members
         </Badge>
       </div>
 
@@ -155,26 +173,26 @@ export default function MyTeamPage() {
           {/* Members List */}
           <div className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
-              Squad Members ({team.members.length})
+              Squad Members ({members.length})
             </h2>
             <div className="flex flex-col gap-3">
-              {team.members.map((m: any) => {
-                const isLeader = m.role === "leader" || m.user_id === team.leader_profile_id;
-                const isMe = m.user_id === user?.id;
+              {members.map((m: any) => {
+                const memberIsLeader = m.role === "leader" || m.user_id === team.leader_profile_id || m.isLeader;
+                const isMe = m.user_id === user?.id || m.id === user?.id;
 
                 return (
-                  <Card key={m.id} className="flex items-center justify-between p-4">
+                  <Card key={m.id || m.user_id} className="flex items-center justify-between p-4">
                     <div className="flex items-center gap-3">
-                      <Avatar url={m.avatarUrl} name={m.fullName} size={40} />
+                      <Avatar url={m.avatarUrl} name={m.fullName || m.name} size={40} />
                       <div>
                         <div className="flex items-center gap-2">
                           <Link
-                            href={`/profile/${m.user_id}`}
+                            href={`/profile/${m.user_id || m.id}`}
                             className="font-semibold text-white hover:text-indigo-300 transition-colors"
                           >
-                            {m.fullName}
+                            {m.fullName || m.name}
                           </Link>
-                          {isLeader && <Badge color="amber">Leader</Badge>}
+                          {memberIsLeader && <Badge color="amber">Leader</Badge>}
                           {isMe && <Badge color="slate">You</Badge>}
                         </div>
                         <p className="text-xs text-slate-400">{m.college}</p>
@@ -188,12 +206,12 @@ export default function MyTeamPage() {
                       </div>
                     </div>
 
-                    {team.isLeader && !isMe && (
+                    {isLeader && !isMe && (
                       <Button
                         variant="ghost"
                         className="text-xs text-red-400 hover:text-red-300"
-                        loading={memberActionLoading === m.user_id}
-                        onClick={() => removeMember(m.user_id)}
+                        loading={memberActionLoading === (m.user_id || m.id)}
+                        onClick={() => removeMember(m.user_id || m.id)}
                       >
                         Remove
                       </Button>
@@ -208,7 +226,7 @@ export default function MyTeamPage() {
           <Card className="p-5">
             <h3 className="text-sm font-semibold text-white">Team Management</h3>
             <p className="mt-1 text-xs text-slate-400">
-              {team.isLeader
+              {isLeader
                 ? "As team leader, you can recruit participants from Discover, manage squad members, and organize problem statements."
                 : "You are a team member. You can view contacts, collaborate on SIH solutions, or leave the squad."}
             </p>
@@ -218,7 +236,7 @@ export default function MyTeamPage() {
                   Discover More Teammates
                 </Button>
               </Link>
-              {!team.isLeader && (
+              {!isLeader && (
                 <Button
                   variant="danger"
                   className="text-xs"
@@ -233,7 +251,7 @@ export default function MyTeamPage() {
 
         {/* Team Discussion Chat */}
         <div>
-          <TeamChat teamId={team.id} />
+          {team.id && <TeamChat teamId={team.id} currentUserId={user?.id} />}
         </div>
       </div>
     </div>
