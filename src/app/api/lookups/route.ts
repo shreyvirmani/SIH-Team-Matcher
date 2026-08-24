@@ -11,7 +11,7 @@ export async function GET() {
       supabase.from("roles").select("id, name").order("name"),
       supabase
         .from("problem_statements")
-        .select("id, title, description, category")
+        .select("id, ps_number, title, description, category")
         .eq("is_active", true)
         .order("id"),
       supabase.from("profiles").select("college").neq("college", "N/A"),
@@ -27,14 +27,28 @@ export async function GET() {
       ? roles
       : SIH_DEFAULT_ROLES.map((name, i) => ({ id: i + 1, name }));
 
-    // If database has 226 problem statements, use those; otherwise use the built-in 226 SIH catalog
+    // Seamlessly provide all 226 authoritative SIH problem statements with PS Numbers and Organizations
     const resolvedProblemStatements = (problemStatements && problemStatements.length >= 226)
-      ? problemStatements
+      ? problemStatements.map((dbPs: any, i: number) => {
+          const fallback = SIH_PROBLEM_STATEMENTS[i] || {};
+          return {
+            id: dbPs.id || fallback.id || i + 1,
+            psNumber: dbPs.ps_number || fallback.psNumber || `SIH${1600 + (dbPs.id || i + 1)}`,
+            organization: fallback.organization || "Govt. of India",
+            theme: dbPs.category || fallback.theme || "Smart Automation",
+            category: dbPs.category || fallback.category || "Smart Automation",
+            title: dbPs.title || fallback.title,
+            description: dbPs.description || fallback.description,
+          };
+        })
       : SIH_PROBLEM_STATEMENTS.map((ps, i) => ({
           id: ps.id || i + 1,
+          psNumber: ps.psNumber || `SIH${1600 + (i + 1)}`,
+          organization: ps.organization,
+          theme: ps.theme || ps.category,
+          category: ps.category || ps.theme,
           title: ps.title,
           description: ps.description,
-          category: ps.category,
         }));
 
     return NextResponse.json({
@@ -44,15 +58,18 @@ export async function GET() {
       colleges,
     });
   } catch {
-    // Graceful fallback
+    // Graceful fallback with full 226 catalog
     return NextResponse.json({
       skills: SIH_DEFAULT_SKILLS.map((name, i) => ({ id: i + 1, name })),
       roles: SIH_DEFAULT_ROLES.map((name, i) => ({ id: i + 1, name })),
       problemStatements: SIH_PROBLEM_STATEMENTS.map((ps, i) => ({
         id: ps.id || i + 1,
+        psNumber: ps.psNumber || `SIH${1600 + (i + 1)}`,
+        organization: ps.organization,
+        theme: ps.theme || ps.category,
+        category: ps.category || ps.theme,
         title: ps.title,
         description: ps.description,
-        category: ps.category,
       })),
       colleges: [],
     });

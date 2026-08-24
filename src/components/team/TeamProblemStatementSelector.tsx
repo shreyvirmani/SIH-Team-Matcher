@@ -5,6 +5,9 @@ import Badge from "@/components/ui/badge";
 
 export interface ProblemStatementItem {
   id: number;
+  psNumber?: string;
+  organization?: string;
+  theme?: string;
   title: string;
   description?: string;
   category?: string;
@@ -28,19 +31,24 @@ export default function TeamProblemStatementSelector({
   const categories = useMemo(() => {
     const cats = new Set<string>();
     (problemStatements || []).forEach((ps) => {
-      if (ps.category) cats.add(ps.category);
+      const cat = ps.category || ps.theme;
+      if (cat) cats.add(cat);
     });
     return ["All", ...Array.from(cats).sort()];
   }, [problemStatements]);
 
   const filtered = useMemo(() => {
     return (problemStatements || []).filter((ps) => {
-      const matchesCategory = selectedCategory === "All" || ps.category === selectedCategory;
+      const cat = ps.category || ps.theme;
+      const matchesCategory = selectedCategory === "All" || cat === selectedCategory;
       const q = search.toLowerCase().trim();
+      const psNum = ps.psNumber || (ps.id ? `SIH${1600 + ps.id}` : "");
       const matchesSearch =
         !q ||
         ps.title.toLowerCase().includes(q) ||
-        (ps.category && ps.category.toLowerCase().includes(q)) ||
+        psNum.toLowerCase().includes(q) ||
+        (ps.organization && ps.organization.toLowerCase().includes(q)) ||
+        (cat && cat.toLowerCase().includes(q)) ||
         (ps.description && ps.description.toLowerCase().includes(q));
       return matchesCategory && matchesSearch;
     });
@@ -54,11 +62,11 @@ export default function TeamProblemStatementSelector({
     <div className="flex flex-col gap-2.5">
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium text-slate-300">
-          Target SIH 2026 Problem Statement <span className="text-red-400">*</span>
+          Target SIH Problem Statement <span className="text-red-400">*</span>
         </label>
         {selectedItem && (
           <span className="text-xs font-semibold text-amber-400">
-            Selected: {selectedItem.title.slice(0, 32)}…
+            Selected: {selectedItem.psNumber || `SIH${1600 + selectedItem.id}`}
           </span>
         )}
       </div>
@@ -68,7 +76,7 @@ export default function TeamProblemStatementSelector({
         type="text"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search 50+ problem statements by topic, keyword (e.g. AI, Drone, Blockchain)…"
+        placeholder="Search all 226 statements by PS No. (e.g. SIH1601), Ministry, Keyword…"
         className="rounded-lg border border-slate-700/80 bg-slate-900/90 px-3.5 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-indigo-400 transition-colors"
       />
 
@@ -91,7 +99,7 @@ export default function TeamProblemStatementSelector({
       </div>
 
       {/* Problem Statements List with Custom Dark Scrollbar */}
-      <div className="flex max-h-60 flex-col gap-2 overflow-y-auto rounded-xl border border-slate-700/70 bg-slate-950/80 p-3 scrollbar-thin scrollbar-thumb-indigo-500/30 scrollbar-track-slate-900/60">
+      <div className="flex max-h-64 flex-col gap-2 overflow-y-auto rounded-xl border border-slate-700/70 bg-slate-950/80 p-3 scrollbar-thin scrollbar-thumb-indigo-500/30 scrollbar-track-slate-900/60">
         {filtered.length === 0 ? (
           <p className="py-8 text-center text-xs text-slate-500">
             No problem statements match your search criteria.
@@ -100,6 +108,8 @@ export default function TeamProblemStatementSelector({
           filtered.map((ps) => {
             const isSelected = String(selectedId) === String(ps.id);
             const isExpanded = expandedId === ps.id;
+            const psNum = ps.psNumber || `SIH${1600 + ps.id}`;
+            const cat = ps.category || ps.theme;
 
             return (
               <div
@@ -125,12 +135,22 @@ export default function TeamProblemStatementSelector({
                       )}
                     </div>
                     <div className="flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-mono text-xs font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-400/30">
+                          {psNum}
+                        </span>
                         <span className={`text-xs font-semibold ${isSelected ? "text-amber-200" : "text-slate-100"}`}>
                           {ps.title}
                         </span>
-                        {ps.category && (
-                          <Badge color="amber">{ps.category}</Badge>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        {ps.organization && (
+                          <span className="text-[11px] text-slate-400 font-medium">
+                            🏛️ {ps.organization}
+                          </span>
+                        )}
+                        {cat && (
+                          <Badge color="slate">{cat}</Badge>
                         )}
                       </div>
                     </div>
@@ -151,9 +171,14 @@ export default function TeamProblemStatementSelector({
                 </div>
 
                 {isExpanded && ps.description && (
-                  <p className="mt-2 text-xs leading-relaxed text-slate-300 pl-7 border-t border-white/5 pt-2">
-                    {ps.description}
-                  </p>
+                  <div className="mt-2 text-xs leading-relaxed text-slate-300 pl-7 border-t border-white/5 pt-2 space-y-1">
+                    {ps.organization && (
+                      <p className="text-amber-300 font-medium">
+                        Organization / Ministry: {ps.organization}
+                      </p>
+                    )}
+                    <p>{ps.description}</p>
+                  </div>
                 )}
               </div>
             );
