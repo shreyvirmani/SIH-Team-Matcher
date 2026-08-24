@@ -27,7 +27,7 @@ export async function GET() {
       ? roles
       : SIH_DEFAULT_ROLES.map((name, i) => ({ id: i + 1, name }));
 
-    // Seamlessly provide all 226 authoritative SIH problem statements with PS Numbers and Organizations
+    // Seamlessly provide all 226 authoritative SIH 2026 problem statements with exact metadata
     const resolvedProblemStatements = (problemStatements && problemStatements.length >= 226)
       ? problemStatements.map((dbPs: any, i: number) => {
           const fallback = SIH_PROBLEM_STATEMENTS[i] || {};
@@ -37,6 +37,7 @@ export async function GET() {
             organization: fallback.organization || "Govt. of India",
             theme: dbPs.category || fallback.theme || "Smart Automation",
             category: dbPs.category || fallback.category || "Smart Automation",
+            type: fallback.type || "Software",
             title: dbPs.title || fallback.title,
             description: dbPs.description || fallback.description,
           };
@@ -47,6 +48,7 @@ export async function GET() {
           organization: ps.organization,
           theme: ps.theme || ps.category,
           category: ps.category || ps.theme,
+          type: ps.type || "Software",
           title: ps.title,
           description: ps.description,
         }));
@@ -68,6 +70,7 @@ export async function GET() {
         organization: ps.organization,
         theme: ps.theme || ps.category,
         category: ps.category || ps.theme,
+        type: ps.type || "Software",
         title: ps.title,
         description: ps.description,
       })),
