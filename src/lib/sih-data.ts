@@ -8,6 +8,52 @@ export interface ProblemStatement {
   description: string;
 }
 
+export const SIH_DEFAULT_SKILLS: string[] = [
+  "React.js",
+  "Next.js",
+  "Node.js",
+  "Python",
+  "FastAPI",
+  "Django",
+  "PyTorch",
+  "TensorFlow",
+  "Computer Vision (OpenCV)",
+  "Natural Language Processing (NLP)",
+  "Flutter / React Native",
+  "Android (Kotlin)",
+  "iOS (Swift)",
+  "PostgreSQL",
+  "MongoDB",
+  "Supabase / Firebase",
+  "Docker & Kubernetes",
+  "Solidity / Web3",
+  "Embedded C / Arduino / ESP32",
+  "ROS2 / Robotics",
+  "UI/UX Design (Figma)",
+  "Tailwind CSS",
+  "TypeScript",
+  "Cybersecurity & Penetration Testing",
+  "Cloud Architecture (AWS / GCP / Azure)",
+];
+
+export const SIH_DEFAULT_ROLES: string[] = [
+  "Team Leader / Project Manager",
+  "Frontend Developer",
+  "Backend Developer",
+  "Full Stack Developer",
+  "AI / ML Engineer",
+  "Data Scientist",
+  "UI / UX Designer",
+  "Mobile App Developer",
+  "Hardware / IoT Engineer",
+  "Cybersecurity Specialist",
+  "DevOps / Cloud Engineer",
+  "Domain / Research Analyst",
+];
+
+export const DEFAULT_SKILLS = SIH_DEFAULT_SKILLS;
+export const DEFAULT_ROLES = SIH_DEFAULT_ROLES;
+
 export const ALL_PROBLEM_STATEMENTS: ProblemStatement[] = [
   {
     id: 1,
@@ -2044,3 +2090,5 @@ export const ALL_PROBLEM_STATEMENTS: ProblemStatement[] = [
     description: "Comprehensive indicator analytics dashboard visualizing district-level health, education, and sanitation milestones and simulating policy impact scenarios.",
   },
 ];
+
+export const SIH_PROBLEM_STATEMENTS = ALL_PROBLEM_STATEMENTS;
