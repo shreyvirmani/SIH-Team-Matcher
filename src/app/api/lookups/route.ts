@@ -33,7 +33,7 @@ export async function GET() {
           const fallback = SIH_PROBLEM_STATEMENTS[i] || {};
           return {
             id: dbPs.id || fallback.id || i + 1,
-            psNumber: dbPs.ps_number || fallback.psNumber || `SIH${1600 + (dbPs.id || i + 1)}`,
+            psNumber: dbPs.ps_number || fallback.psNumber || `SIH26${String(dbPs.id || i + 1).padStart(3, "0")}`,
             organization: fallback.organization || "Govt. of India",
             theme: dbPs.category || fallback.theme || "Smart Automation",
             category: dbPs.category || fallback.category || "Smart Automation",
@@ -43,7 +43,7 @@ export async function GET() {
         })
       : SIH_PROBLEM_STATEMENTS.map((ps, i) => ({
           id: ps.id || i + 1,
-          psNumber: ps.psNumber || `SIH${1600 + (i + 1)}`,
+          psNumber: ps.psNumber || `SIH26${String(i + 1).padStart(3, "0")}`,
           organization: ps.organization,
           theme: ps.theme || ps.category,
           category: ps.category || ps.theme,
@@ -64,7 +64,7 @@ export async function GET() {
       roles: SIH_DEFAULT_ROLES.map((name, i) => ({ id: i + 1, name })),
       problemStatements: SIH_PROBLEM_STATEMENTS.map((ps, i) => ({
         id: ps.id || i + 1,
-        psNumber: ps.psNumber || `SIH${1600 + (i + 1)}`,
+        psNumber: ps.psNumber || `SIH26${String(i + 1).padStart(3, "0")}`,
         organization: ps.organization,
         theme: ps.theme || ps.category,
         category: ps.category || ps.theme,

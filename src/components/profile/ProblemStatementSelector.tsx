@@ -42,7 +42,7 @@ export default function ProblemStatementSelector({
       const cat = ps.category || ps.theme;
       const matchesCategory = selectedCategory === "All" || cat === selectedCategory;
       const q = search.toLowerCase().trim();
-      const psNum = ps.psNumber || (ps.id ? `SIH${1600 + ps.id}` : "");
+      const psNum = ps.psNumber || (ps.id ? `SIH26${String(ps.id).padStart(3, "0")}` : "");
       const matchesSearch =
         !q ||
         ps.title.toLowerCase().includes(q) ||
@@ -70,7 +70,7 @@ export default function ProblemStatementSelector({
     <div className="flex flex-col gap-2.5">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-slate-300">
-          SIH Problem Statements
+          SIH 2026 Problem Statements
         </span>
         <div className="flex items-center gap-2">
           {selectedIds.length > 0 && (
@@ -95,7 +95,7 @@ export default function ProblemStatementSelector({
         type="text"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search all 226 statements by PS No. (e.g. SIH1601), Ministry, Keyword (AI, Drone, Cyber)…"
+        placeholder="Search all 226 statements by PS No. (e.g. SIH26021), Ministry (MSME, Steel), Keyword…"
         className="rounded-lg border border-slate-600/60 bg-white/5 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-indigo-400 transition-colors"
       />
 
@@ -127,7 +127,7 @@ export default function ProblemStatementSelector({
           filtered.map((ps) => {
             const isSelected = selectedIds.includes(ps.id);
             const isExpanded = expandedId === ps.id;
-            const psNum = ps.psNumber || `SIH${1600 + ps.id}`;
+            const psNum = ps.psNumber || `SIH26${String(ps.id).padStart(3, "0")}`;
             const cat = ps.category || ps.theme;
 
             return (

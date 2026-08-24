@@ -42,7 +42,7 @@ export default function TeamProblemStatementSelector({
       const cat = ps.category || ps.theme;
       const matchesCategory = selectedCategory === "All" || cat === selectedCategory;
       const q = search.toLowerCase().trim();
-      const psNum = ps.psNumber || (ps.id ? `SIH${1600 + ps.id}` : "");
+      const psNum = ps.psNumber || (ps.id ? `SIH26${String(ps.id).padStart(3, "0")}` : "");
       const matchesSearch =
         !q ||
         ps.title.toLowerCase().includes(q) ||
@@ -62,11 +62,11 @@ export default function TeamProblemStatementSelector({
     <div className="flex flex-col gap-2.5">
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium text-slate-300">
-          Target SIH Problem Statement <span className="text-red-400">*</span>
+          Target SIH 2026 Problem Statement <span className="text-red-400">*</span>
         </label>
         {selectedItem && (
           <span className="text-xs font-semibold text-amber-400">
-            Selected: {selectedItem.psNumber || `SIH${1600 + selectedItem.id}`}
+            Selected: {selectedItem.psNumber || `SIH26${String(selectedItem.id).padStart(3, "0")}`}
           </span>
         )}
       </div>
@@ -76,7 +76,7 @@ export default function TeamProblemStatementSelector({
         type="text"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search all 226 statements by PS No. (e.g. SIH1601), Ministry, Keyword…"
+        placeholder="Search all 226 statements by PS No. (e.g. SIH26021), Ministry (MSME, Steel), Keyword…"
         className="rounded-lg border border-slate-700/80 bg-slate-900/90 px-3.5 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-indigo-400 transition-colors"
       />
 
@@ -108,7 +108,7 @@ export default function TeamProblemStatementSelector({
           filtered.map((ps) => {
             const isSelected = String(selectedId) === String(ps.id);
             const isExpanded = expandedId === ps.id;
-            const psNum = ps.psNumber || `SIH${1600 + ps.id}`;
+            const psNum = ps.psNumber || `SIH26${String(ps.id).padStart(3, "0")}`;
             const cat = ps.category || ps.theme;
 
             return (
