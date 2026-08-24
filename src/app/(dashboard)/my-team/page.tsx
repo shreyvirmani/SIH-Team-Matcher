@@ -10,7 +10,6 @@ import Avatar from "@/components/profile/Avatar";
 import BackButton from "@/components/common/BackButton";
 import TeamChat from "@/components/team/TeamChat";
 import TeamProblemStatementSelector from "@/components/team/TeamProblemStatementSelector";
-import { TrashIcon, PhoneIcon } from "@/components/common/Icons";
 import { apiFetch } from "@/lib/api-client";
 import { useSession } from "@/lib/use-session";
 
@@ -188,7 +187,7 @@ export default function MyTeamPage() {
               </div>
             )}
             <Button type="submit" loading={creating} className="w-full">
-              Create Squad & Start Recruiting
+              Create Squad & Start Recruting
             </Button>
           </form>
         </Card>
@@ -217,12 +216,11 @@ export default function MyTeamPage() {
           {(isLeader || isOnlyMember) && (
             <Button
               variant="danger"
-              className="text-xs px-3 py-1.5 flex items-center gap-1.5"
+              className="text-xs px-3 py-1.5"
               loading={deleting}
               onClick={deleteOrDisbandTeam}
             >
-              <TrashIcon className="h-3.5 w-3.5" />
-              <span>Disband Team</span>
+              🗑️ Disband Team
             </Button>
           )}
         </div>
@@ -249,8 +247,8 @@ export default function MyTeamPage() {
                 Squad Members ({members.length} / 6)
               </h2>
               {isOnlyMember && (
-                <span className="text-xs text-slate-400 font-medium">
-                  Solo Member (Recruit or Disband to start new)
+                <span className="text-xs text-amber-400 font-medium">
+                  Solo Member (Recruit or Disband to create new)
                 </span>
               )}
             </div>
@@ -278,8 +276,8 @@ export default function MyTeamPage() {
                         <p className="text-xs text-slate-400">{m.college}</p>
                         {/* Member contact phone (unlocked for teammates) */}
                         {m.mobileNumber && (
-                          <p className="mt-1 text-xs text-emerald-400 flex items-center gap-1.5">
-                            <PhoneIcon className="h-3 w-3" />
+                          <p className="mt-1 text-xs text-emerald-400 flex items-center gap-1">
+                            <span>📞</span>
                             <span className="font-mono">{m.mobileNumber}</span>
                           </p>
                         )}
@@ -328,12 +326,11 @@ export default function MyTeamPage() {
               {(isLeader || isOnlyMember) && (
                 <Button
                   variant="danger"
-                  className="text-xs flex items-center gap-1.5"
+                  className="text-xs"
                   loading={deleting}
                   onClick={deleteOrDisbandTeam}
                 >
-                  <TrashIcon className="h-3.5 w-3.5" />
-                  <span>Delete Team & Start Fresh</span>
+                  Delete Team & Start Fresh
                 </Button>
               )}
             </div>
